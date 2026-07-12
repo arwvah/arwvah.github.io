@@ -1,0 +1,47 @@
+export const works = [
+  {
+    id: "project-1",
+    title: "Nexus Fintech",
+    slug: "nexus",
+    thumbnail: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    description:
+      "Visual identity system for a modern fintech startup — clean geometry, trust-forward palette, and scalable brand assets.",
+    client: "Nexus Inc.",
+    year: "2025",
+    projectType: "Branding",
+    credits: "Design & Code: arwah",
+    images: ["#667eea", "#764ba2"],
+    x: 48,
+    y: 48,
+  },
+  {
+    id: "project-2",
+    title: "Oasis Mobile",
+    slug: "oasis",
+    thumbnail: "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+    description:
+      "A calm, focus-oriented productivity suite with soft motion, generous spacing, and distraction-free workflows.",
+    client: "Self-initiated",
+    year: "2024",
+    projectType: "UI/UX",
+    credits: "Design: arwah",
+    images: ["#11998e", "#38ef7d"],
+    x: 48,
+    y: 180,
+  },
+  {
+    id: "project-3",
+    title: "Lumina Camera",
+    slug: "lumina",
+    thumbnail: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+    description:
+      "Pro-level manual controls with an intuitive interface — designed for creators who want speed without sacrificing precision.",
+    client: "Lumina",
+    year: "2026",
+    projectType: "App Design",
+    credits: "Product Design: arwah",
+    images: ["#f093fb", "#f5576c"],
+    x: 48,
+    y: 312,
+  },
+];

@@ -1,0 +1,172 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+/* ===== Theme tokens ===== */
+
+:root,
+[data-theme="dark"] {
+  --bg-color: #0c0c10;
+  --bg-elevated: #16161d;
+  --bg-surface: rgba(28, 28, 36, 0.82);
+  --text-primary: #f4f4f7;
+  --text-secondary: #9b9ba8;
+  --text-muted: #6e6e7a;
+  --accent: #5b8cff;
+  --accent-soft: rgba(91, 140, 255, 0.15);
+  --accent-blue: #5b8cff;
+  --glass-bg: rgba(22, 22, 30, 0.55);
+  --glass-bg-strong: rgba(18, 18, 26, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --window-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  --window-shadow-active: 0 32px 100px rgba(0, 0, 0, 0.65);
+  --tag-bg: #2a2a36;
+  --divider: rgba(255, 255, 255, 0.08);
+  --desktop-overlay: linear-gradient(
+    180deg,
+    rgba(8, 8, 14, 0.15) 0%,
+    rgba(8, 8, 14, 0.35) 50%,
+    rgba(8, 8, 14, 0.75) 100%
+  );
+  --dock-bg: rgba(16, 16, 22, 0.45);
+  --dock-border: rgba(255, 255, 255, 0.12);
+  --dock-blur: 28px;
+  --dock-icon-bg: rgba(255, 255, 255, 0.08);
+  --dock-icon-bg-hover: rgba(255, 255, 255, 0.14);
+  --dock-icon-border: rgba(255, 255, 255, 0.12);
+  --dock-icon-color: rgba(244, 244, 247, 0.92);
+  --dock-icon-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  --dock-icon-shine: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0) 48%
+  );
+  --titlebar-bg: rgba(36, 36, 46, 0.9);
+  --icon-label-bg: rgba(0, 0, 0, 0.4);
+  --icon-label-color: #ffffff;
+  --icon-label-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  --notes-bg: #2a2a32;
+  --notes-text: #f0f0f4;
+  --menubar-bg: rgba(18, 18, 26, 0.55);
+  --menubar-text: rgba(255, 255, 255, 0.9);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --btn-close: #ff5f57;
+  --btn-min: #ffbd2e;
+  --btn-max: #28ca41;
+  --success: #3dd68c;
+  --danger: #ff6b6b;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg-color: #f3f4f8;
+  --bg-elevated: #ffffff;
+  --bg-surface: rgba(255, 255, 255, 0.88);
+  --text-primary: #1a1a22;
+  --text-secondary: #5c5c6b;
+  --text-muted: #8a8a99;
+  --accent: #3b6ef5;
+  --accent-soft: rgba(59, 110, 245, 0.12);
+  --accent-blue: #3b6ef5;
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 12px 40px rgba(30, 40, 80, 0.12);
+  --window-shadow: 0 20px 60px rgba(40, 50, 90, 0.18);
+  --window-shadow-active: 0 28px 80px rgba(40, 50, 90, 0.28);
+  --tag-bg: #e8eaf0;
+  --divider: rgba(0, 0, 0, 0.08);
+  --desktop-overlay: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.04) 45%,
+    rgba(20, 24, 40, 0.28) 100%
+  );
+  --dock-bg: rgba(255, 255, 255, 0.45);
+  --dock-border: rgba(255, 255, 255, 0.7);
+  --dock-blur: 28px;
+  --dock-icon-bg: rgba(255, 255, 255, 0.55);
+  --dock-icon-bg-hover: rgba(255, 255, 255, 0.78);
+  --dock-icon-border: rgba(255, 255, 255, 0.75);
+  --dock-icon-color: rgba(26, 26, 34, 0.88);
+  --dock-icon-shadow: 0 6px 16px rgba(40, 50, 90, 0.14);
+  --dock-icon-shine: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0) 48%
+  );
+  --titlebar-bg: rgba(245, 246, 250, 0.92);
+  --icon-label-bg: rgba(255, 255, 255, 0.75);
+  --icon-label-color: #1a1a22;
+  --icon-label-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+  --notes-bg: #fff8c5;
+  --notes-text: #3a3520;
+  --menubar-bg: rgba(255, 255, 255, 0.5);
+  --menubar-text: rgba(20, 20, 30, 0.9);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  color-scheme: light;
+}
+
+/* ===== Base ===== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-color);
+  color: var(--text-primary);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.35s ease, color 0.25s ease;
+}
+
+button {
+  font-family: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 0.5em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+p {
+  margin: 0 0 1em;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Smooth theme transitions for themed surfaces */
+.desktop-environment,
+.mac-window,
+.dock,
+.menubar,
+.theme-toggle,
+.window-titlebar,
+.window-content {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    color 0.25s ease;
+}

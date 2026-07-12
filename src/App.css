@@ -1,0 +1,198 @@
+/* ===== Desktop ===== */
+
+.desktop-environment {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    var(--desktop-overlay),
+    url("./assets/dark_bg.webp") center center / cover no-repeat;
+  background-color: var(--bg-color);
+}
+
+[data-theme="light"] .desktop-environment {
+  background:
+    var(--desktop-overlay),
+    url("./assets/light_bg.webp") center center / cover no-repeat;
+  background-color: var(--bg-color);
+  filter: none;
+}
+
+[data-theme="light"] .desktop-environment::before {
+  content: none;
+}
+
+/* Soft ambient orbs (dark) */
+.desktop-environment::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 25%, rgba(91, 140, 255, 0.12), transparent 40%),
+    radial-gradient(circle at 85% 70%, rgba(168, 85, 247, 0.08), transparent 35%);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+[data-theme="light"] .desktop-environment::after {
+  opacity: 0;
+}
+
+/* ===== Overlay (legacy layer kept subtle) ===== */
+
+.desktop-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ===== Menu bar ===== */
+
+.menubar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: var(--menubar-bg);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--menubar-text);
+  font-size: 0.78rem;
+  font-weight: 500;
+  z-index: 40;
+  user-select: none;
+}
+
+.menubar-left,
+.menubar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menubar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.menubar-brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5b8cff, #a855f7);
+  box-shadow: 0 0 10px rgba(91, 140, 255, 0.6);
+}
+
+.menubar-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.menubar-nav span {
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.menubar-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--menubar-text);
+  opacity: 0.9;
+}
+
+/* Theme toggle */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 24px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-bg);
+  color: var(--menubar-text);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform 0.2s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.theme-toggle:hover {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--glass-bg-strong);
+}
+
+.theme-toggle:active {
+  transform: scale(0.96);
+}
+
+.theme-toggle svg {
+  transition: transform 0.4s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.theme-toggle:hover svg {
+  transform: rotate(15deg);
+}
+
+/* ===== Desktop Icons ===== */
+
+.desktop-area {
+  position: absolute;
+  inset: 0;
+  top: 32px;
+  padding: 28px 36px 140px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 28px;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+/* ===== Windows ===== */
+
+.windows-area {
+  position: absolute;
+  inset: 0;
+  top: 32px;
+  overflow: hidden;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.windows-area>* {
+  pointer-events: auto;
+}
+
+/* ===== Dock blur strip ===== */
+
+.dock-blur-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 140px;
+  pointer-events: none;
+  z-index: 15;
+  background: linear-gradient(to top,
+      color-mix(in srgb, var(--bg-color) 70%, transparent),
+      transparent);
+}

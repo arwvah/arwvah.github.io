@@ -1,0 +1,85 @@
+.desktop-icon {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 88px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.icon-graphic {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dock-icon-color);
+  background: var(--dock-icon-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    var(--dock-icon-shadow),
+    inset 0 1px 0 var(--glass-highlight);
+  border: 1px solid var(--dock-icon-border);
+  position: relative;
+  overflow: hidden;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.2s ease;
+}
+
+.icon-graphic svg {
+  position: relative;
+  z-index: 1;
+  color: inherit;
+}
+
+.icon-graphic::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--dock-icon-shine);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.desktop-icon:hover .icon-graphic {
+  background: var(--dock-icon-bg-hover);
+  box-shadow:
+    var(--dock-icon-shadow),
+    0 0 0 3px var(--accent-soft),
+    inset 0 1px 0 var(--glass-highlight);
+}
+
+.desktop-icon:focus-visible .icon-graphic {
+  background: var(--dock-icon-bg-hover);
+  box-shadow:
+    var(--dock-icon-shadow),
+    0 0 0 3px var(--accent),
+    inset 0 1px 0 var(--glass-highlight);
+}
+
+.icon-label {
+  color: var(--icon-label-color);
+  text-shadow: var(--icon-label-shadow);
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-align: center;
+  background: var(--icon-label-bg);
+  backdrop-filter: blur(8px);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--glass-border);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
