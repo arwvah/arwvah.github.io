@@ -1,0 +1,418 @@
+================================================================================
+  PORTFOLIOOS — FULL PROJECT INFORMATION
+================================================================================
+  Generated for local documentation of the desktop-style personal portfolio.
+  Path: C:\Users\MSI\OneDrive\Desktop\portfolio
+  Package name (package.json): makos
+  Brand / product name: PortfolioOS
+  Owner / persona: arwah
+================================================================================
+
+
+--------------------------------------------------------------------------------
+1. OVERVIEW
+--------------------------------------------------------------------------------
+
+PortfolioOS is an interactive, desktop-environment style personal portfolio
+website. Instead of a traditional multi-page layout, it presents a fake macOS-
+inspired desktop where visitors:
+
+  - Browse project icons on a desktop wallpaper
+  - Open apps and project details in draggable windows
+  - Use a bottom dock for apps and social links
+  - Explore a polished custom terminal shell (ReactShell)
+  - Toggle light / dark theme from a top menu bar
+
+The goal is to make the portfolio feel like an operating system you can explore
+— which mirrors the author’s learning style and cybersecurity interests.
+
+
+--------------------------------------------------------------------------------
+2. WHO IT IS FOR / PERSONAL BRAND
+--------------------------------------------------------------------------------
+
+Persona presented in the UI and terminal:
+
+  Name / handle : arwah
+  Role          : Cybersecurity student
+  Track         : Purple Team aspirant
+  Interests     : Pentesting, forensics, malware analysis, threat detection,
+                  security engineering, CTFs
+  Also builds   : Software & automation (Python, Java, Kotlin, JavaScript/React)
+  Locale        : Cyber University of Uzbekistan
+  Age (about)   : 18
+
+Hardware / “neofetch” flavor text (fun system info, not a real OS probe):
+
+  Host   : MSI Katana A15
+  CPU    : Ryzen 7 8845HS
+  GPU    : RTX 4050
+  Memory : 16 GB
+  OS     : PortfolioOS 1.0
+  Kernel : ReactShell x64
+  Shell  : zsh-ish 5.9
+
+Social / contact (as wired in Dock + terminal):
+
+  GitHub   : https://github.com/arwvah
+  Telegram : https://t.me/yaa_sosed
+  X        : https://x.com/arwahcxz
+  Steam    : https://steamcommunity.com/id/arwahhh/
+  Reddit   : https://www.reddit.com/u/arwvah/
+
+
+--------------------------------------------------------------------------------
+3. FEATURES
+--------------------------------------------------------------------------------
+
+3.1 Desktop environment
+  - Full-viewport desktop with wallpaper (dark / light variants)
+  - Soft ambient overlays and glassmorphism styling
+  - Project folders as desktop icons with positions from data
+  - Open windows with focus stacking (active window on top)
+  - AnimatePresence for window enter/exit motion
+
+3.2 Menu bar
+  - Top bar with theme toggle (Sun / Moon icons)
+  - Theme preference stored in localStorage (key: portfolio-theme)
+  - Falls back to system prefers-color-scheme when no stored value
+  - Early theme script in index.html avoids flash of wrong theme
+
+3.3 Dock
+  - App launcher: About Me, Notes, Terminal
+  - Social links: Telegram, GitHub, Steam, Reddit, X/Twitter
+  - Spring hover scale / lift animations (Framer Motion)
+  - Tooltips on dock items
+  - Brand icons for GitHub and X are small inline SVGs (no brand-icon package)
+
+3.4 Windows
+  - macOS-like title bar with traffic-light close / min / max controls
+  - Drag windows (Framer Motion drag, no momentum)
+  - Focus on pointer down; close removes window from state
+  - Window types:
+      * project  — portfolio case study detail from works data
+      * app      — About Me, Notes, or Terminal
+  - Special sizes:
+      * Notes     — compact sticky-note style (~380×340)
+      * Terminal  — dedicated dark shell chrome (~720×520)
+      * Default   — ~900×600 max
+
+3.5 About Me app
+  - Avatar image (src/assets/hero.jpg)
+  - Bio / profile presentation inside a window
+
+3.6 Notes app
+  - Compact notes-style window for short written content
+
+3.7 Terminal (PortfolioOS Shell / ReactShell)
+  - Fully custom terminal UI (not xterm.js, not a real OS shell)
+  - Short cold-boot animation (~1.6s) with staged log lines + progress bar
+  - Respects prefers-reduced-motion (skips staged boot)
+  - Welcome banner with ASCII “ARWAH”, pills, meta card, quick-command chips
+  - Prompt: arwah@portfolio:~ ❯
+  - Features:
+      * Command history (Arrow Up / Down)
+      * Tab autocomplete + ghost suggestion text
+      * Multi-match suggestion chips
+      * Ctrl+L clear
+      * Ctrl+C cancel current line
+      * Clickable quick commands on boot
+      * Status bar: ready/booting, path, command count, live clock
+  - Structured rich outputs for help, whoami, about, skills, contact,
+    projects, ls, neofetch (cards, panels, clickable links)
+
+3.8 Theme system
+  - CSS custom properties for dark and light tokens in index.css
+  - Fonts: Inter + JetBrains Mono (Google Fonts)
+  - data-theme attribute on <html>
+
+
+--------------------------------------------------------------------------------
+4. SAMPLE PORTFOLIO PROJECTS (data/works.js)
+--------------------------------------------------------------------------------
+
+These are demo/placeholder case studies shown as desktop icons:
+
+  1) Nexus Fintech
+     ID / slug : project-1 / nexus
+     Year      : 2025
+     Type      : Branding
+     Client    : Nexus Inc.
+     Summary   : Visual identity system for a modern fintech startup
+
+  2) Oasis Mobile
+     ID / slug : project-2 / oasis
+     Year      : 2024
+     Type      : UI/UX
+     Client    : Self-initiated
+     Summary   : Calm productivity suite UI concept
+
+  3) Lumina Camera
+     ID / slug : project-3 / lumina
+     Year      : 2026
+     Type      : App Design
+     Client    : Lumina
+     Summary   : Pro-level camera app UI for creators
+
+Open from desktop icons, or from terminal:
+
+  open nexus | open oasis | open lumina
+
+
+--------------------------------------------------------------------------------
+5. TERMINAL COMMAND REFERENCE
+--------------------------------------------------------------------------------
+
+  help              Show command map
+  whoami            Identity & role (profile card)
+  about             Short bio
+  skills            Offensive / defensive skill panels
+  contact           Clickable social / contact links
+  projects          List portfolio projects
+  ls                Fake home directory listing
+  pwd               Print /home/arwah
+  date              Current system date string
+  neofetch          ASCII + system flavor fields + palette
+  open <name>       Launch app or project window
+                      examples: open about, open notes, open terminal,
+                                open nexus
+  github            Open GitHub profile in new tab
+  echo <text>       Echo arguments
+  clear             Clear terminal (shows boot banner again)
+
+Keyboard:
+
+  Enter             Run command
+  Tab               Autocomplete
+  ↑ / ↓             History
+  Ctrl+L / Cmd+L    Clear
+  Ctrl+C / Cmd+C    Cancel current input line
+
+
+--------------------------------------------------------------------------------
+6. TECHNOLOGY STACK
+--------------------------------------------------------------------------------
+
+Runtime / UI:
+  - React 19.2.x
+  - React DOM 19.2.x
+  - Framer Motion 12.x          (window/dock/desktop motion)
+  - Lucide React 1.x            (icons)
+
+Build / tooling:
+  - Vite 8.x
+  - @vitejs/plugin-react 6.x
+  - Oxlint                      (lint)
+  - @types/react, @types/react-dom  (editor types; project is JSX not TS)
+
+What was intentionally removed (not needed for current frontend-only shell):
+  - xterm
+  - express / ws / node-pty (old real-terminal server idea; no server folder)
+  - react-icons (replaced by lucide + inline SVGs)
+
+Fonts (CDN via CSS @import):
+  - Inter (UI)
+  - JetBrains Mono (terminal)
+
+No backend, no database, no auth. Static SPA after `npm run build`.
+
+
+--------------------------------------------------------------------------------
+7. PROJECT STRUCTURE
+--------------------------------------------------------------------------------
+
+portfolio/
+├── index.html                 Entry HTML + early theme bootstrap script
+├── package.json               Scripts & dependencies
+├── package-lock.json
+├── vite.config.js             Vite + React plugin
+├── .oxlintrc.json             Oxlint config
+├── .gitignore                 Ignores node_modules, dist, logs, editor junk
+├── README.md                  Short usage notes
+├── PROJECT_INFO.txt           This file
+├── public/
+│   └── favicon.svg
+└── src/
+    ├── main.jsx               React root mount
+    ├── App.jsx                Desktop shell state (windows, theme, dock)
+    ├── App.css                Desktop layout / wallpaper / overlays
+    ├── index.css              Global theme tokens, reset, fonts
+    ├── assets/
+    │   ├── dark_bg.webp       Dark desktop wallpaper
+    │   ├── light_bg.webp      Light desktop wallpaper
+    │   └── hero.jpg           About / avatar image
+    ├── data/
+    │   └── works.js           Portfolio project entries
+    ├── hooks/
+    │   └── useTheme.js        Theme state, localStorage, system preference
+    └── components/
+        ├── MenuBar.jsx
+        ├── Dock.jsx / Dock.css
+        ├── DesktopIcon.jsx / DesktopIcon.css
+        ├── Window.jsx / Window.css
+        └── Terminal/
+            ├── Terminal.jsx   UI, boot animation, input, history, autocomplete
+            ├── Terminal.css   Shell visual design
+            ├── commands.js    Command parser & structured responses
+            └── neofetch.js    Neofetch banner + fields
+
+
+--------------------------------------------------------------------------------
+8. ARCHITECTURE (HOW IT WORKS)
+--------------------------------------------------------------------------------
+
+App.jsx owns:
+
+  - theme via useTheme()
+  - openWindows[]   { id, content }
+  - activeWindow id
+
+Opening:
+  - DesktopIcon → handleOpenWindow(projectId, { type: "project", data })
+  - Dock apps   → handleOpenWindow(appId, { type: "app", id })
+  - Terminal    → onOpenWindow callback for `open` / related commands
+
+Window.jsx:
+  - Renders title from content type
+  - Branches content: project detail | About Me | Notes | Terminal
+  - Terminal receives onOpenWindow so shell can open other windows
+
+Terminal.jsx:
+  - Boot phase state machine (booting → ready)
+  - lines[] history of output blocks
+  - executeCommand() from commands.js returns either:
+      { clear: true }
+      { kind: "...", ...structured }
+      { output, variant }
+
+Styling:
+  - Component CSS modules-by-convention (plain CSS files, no CSS modules)
+  - Theme variables cascade from [data-theme="dark"|"light"]
+
+
+--------------------------------------------------------------------------------
+9. NPM SCRIPTS
+--------------------------------------------------------------------------------
+
+  npm run dev       Start Vite dev server (HMR)
+  npm run build     Production build → dist/
+  npm run preview   Serve production build locally
+  npm run lint      Run oxlint on the project
+
+
+--------------------------------------------------------------------------------
+10. HOW TO RUN (LOCAL)
+--------------------------------------------------------------------------------
+
+  Prerequisites:
+    - Node.js (modern LTS recommended)
+    - npm
+
+  Install dependencies:
+    cd C:\Users\MSI\OneDrive\Desktop\portfolio
+    npm install
+
+  Development:
+    npm run dev
+    Open the URL Vite prints (usually http://localhost:5173)
+
+  Production build:
+    npm run build
+    npm run preview
+
+
+--------------------------------------------------------------------------------
+11. THEMING DETAILS
+--------------------------------------------------------------------------------
+
+  Storage key : portfolio-theme
+  Values      : "light" | "dark"
+
+  Early apply (index.html inline script):
+    - Reads localStorage or system preference
+    - Sets document.documentElement data-theme + colorScheme
+    - Prevents wrong-theme flash before React hydrates/mounts
+
+  Wallpapers:
+    - Dark  → src/assets/dark_bg.webp
+    - Light → src/assets/light_bg.webp
+
+  Toggle location: MenuBar
+
+
+--------------------------------------------------------------------------------
+12. UX / DESIGN NOTES
+--------------------------------------------------------------------------------
+
+  - Glass / blur surfaces for windows and dock
+  - macOS traffic lights on window chrome
+  - Terminal uses a deep blue-black palette with cyan / green / purple accents
+  - Scanline + subtle grid effects in the terminal (very light)
+  - Motion: spring transitions for windows and dock; short boot sequence
+  - Responsive considerations for small widths (help grid, neofetch stack,
+    contact rows, hide some chrome meta)
+
+
+--------------------------------------------------------------------------------
+13. KNOWN LIMITATIONS / NON-GOALS
+--------------------------------------------------------------------------------
+
+  - Not a real shell: no filesystem, no processes, no network shell
+  - Min / max window buttons are visual only (no minimize/maximize logic)
+  - Project images are gradient placeholders in works data
+  - Multi-window z-order is binary (active vs inactive), not full stack order
+  - No routing / deep links to specific apps by URL
+  - No i18n
+  - No automated tests currently
+
+
+--------------------------------------------------------------------------------
+14. POSSIBLE FUTURE IMPROVEMENTS
+--------------------------------------------------------------------------------
+
+  - Real project screenshots / case-study media
+  - Window minimize to dock + restore
+  - Persist open windows or terminal history in sessionStorage
+  - URL hash routes (e.g. #terminal, #project-1)
+  - Mobile-optimized desktop layout
+  - More terminal commands (cat, tree, theme, resume download)
+  - Accessibility audit (focus traps in windows, ARIA for desktop)
+  - Deploy to static hosting (Vercel, Netlify, GitHub Pages, Cloudflare Pages)
+
+
+--------------------------------------------------------------------------------
+15. DEPENDENCY SNAPSHOT (as of cleanup)
+--------------------------------------------------------------------------------
+
+  dependencies:
+    framer-motion
+    lucide-react
+    react
+    react-dom
+
+  devDependencies:
+    @types/react
+    @types/react-dom
+    @vitejs/plugin-react
+    oxlint
+    vite
+
+
+--------------------------------------------------------------------------------
+16. QUICK “MAP” FOR CONTRIBUTORS
+--------------------------------------------------------------------------------
+
+  Change desktop wallpaper     → src/assets/*_bg.webp + App.css
+  Add a project                → src/data/works.js
+  Edit dock apps / socials     → src/components/Dock.jsx
+  Edit About content           → src/components/Window.jsx
+  Edit terminal commands       → src/components/Terminal/commands.js
+  Edit terminal look           → src/components/Terminal/Terminal.css
+  Edit boot animation          → src/components/Terminal/Terminal.jsx
+  Edit theme tokens            → src/index.css
+  Edit window chrome / sizes   → src/components/Window.css + Window.jsx
+
+
+================================================================================
+  END OF PROJECT INFO
+================================================================================
