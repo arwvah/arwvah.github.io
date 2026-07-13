@@ -44,4 +44,19 @@ export const works = [
     x: 48,
     y: 312,
   },
+  {
+    id: "project-4",
+    title: "AI SOC Analyst",
+    slug: "ai-soc-analyst",
+    thumbnail: "linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%)",
+    description:
+      "Local-only SOC platform combining FastAPI, SQLite, Ollama, and ChromaDB for log analysis, IOC detection, and investigation workflows.",
+    client: "Self-initiated",
+    year: "2026",
+    projectType: "Security Platform",
+    credits: "Design & Code: arwah",
+    images: ["#1d4ed8", "#0ea5e9"],
+    x: 48,
+    y: 444,
+  },
 ];
