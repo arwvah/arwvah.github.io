@@ -1,14 +1,14 @@
 export const works = [
   {
     id: "project-1",
-    title: "Nexus Fintech",
-    slug: "nexus",
+    title: "Traveler's Maps",
+    slug: "traveler-maps",
     thumbnail: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     description:
-      "Visual identity system for a modern fintech startup — clean geometry, trust-forward palette, and scalable brand assets.",
-    client: "Nexus Inc.",
-    year: "2025",
-    projectType: "Branding",
+      "Traveler's Map is a modern, feature-rich Android travel companion dedicated to exploring Uzbekistan's rich historical and cultural landmarks. Built using Kotlin, Jetpack Compose, and Material 3 following Clean Architecture and MVVM principles, the application provides an offline-capable catalog of 650+ attractions. Key features include high-performance map marker clustering via Google Maps SDK, turn-by-turn routing with dynamic dynamic polyline overlays, live weather metrics from Open-Meteo, local budget tracking, and an interactive AI trip planning assistant powered by Groq llama-3.3-70b.",
+    client: "Self-initiated",
+    year: "2026",
+    projectType: "Android App",
     credits: "Design & Code: arwah",
     images: ["#667eea", "#764ba2"],
     x: 48,
