@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750" font-family="GeistMono, Consolas, monospace">
+  <rect width="1200" height="750" fill="#101114"/>
+  <rect x="36" y="36" width="1128" height="678" rx="16" fill="#16171a" stroke="#2a2d31" stroke-width="1.5"/>
+  <!-- titlebar -->
+  <line x1="36" y1="86" x2="1164" y2="86" stroke="#2a2d31"/>
+  <circle cx="70" cy="61" r="6" fill="#ff5f57"/><circle cx="92" cy="61" r="6" fill="#febc2e"/><circle cx="114" cy="61" r="6" fill="#28c840"/>
+  <text x="140" y="66" fill="#8a8f98" font-size="13">payload-lab — analysis</text>
+  <!-- terminal body -->
+  <g font-size="14">
+    <text x="66" y="126"><tspan fill="#5fd68b">$</tspan><tspan fill="#f2f3f4" dx="8">payload-lab inspect sample.bin</tspan></text>
+    <text x="66" y="158" fill="#b9bfc7">→ format ELF64 · arch x86_64 · entry 0x401060</text>
+    <text x="66" y="186" fill="#b9bfc7">→ sections 28 · entropy 6.41 · packed: <tspan fill="#5fd68b">no</tspan></text>
+    <text x="66" y="222" fill="#8a8f98">SECTION TABLE</text>
+    <text x="66" y="250" fill="#8a8f98">  .text    0x4a20   r-x  <tspan fill="#339af0">addr 0x401000</tspan></text>
+    <text x="66" y="278" fill="#8a8f98">  .data    0x1180   rw-  <tspan fill="#339af0">addr 0x406000</tspan></text>
+    <text x="66" y="306" fill="#8a8f98">  .rdata   0x2c40   r--  <tspan fill="#339af0">addr 0x408000</tspan></text>
+    <text x="66" y="342" fill="#8a8f98">HEX DUMP @ .text</text>
+    <text x="66" y="370"><tspan fill="#339af0">0x00401000</tspan><tspan fill="#8a8f98" dx="10">55 48 89 e5 48 83 ec 20</tspan><tspan fill="#f5d000" dx="16">|UH..H.. |</tspan></text>
+    <text x="66" y="398"><tspan fill="#339af0">0x00401008</tspan><tspan fill="#8a8f98" dx="10">c7 45 fc 00 00 00 00 eb</tspan><tspan fill="#f5d000" dx="16">|.E..... |</tspan></text>
+    <text x="66" y="426"><tspan fill="#339af0">0x00401010</tspan><tspan fill="#8a8f98" dx="10">0f b6 05 3c 2f 00 00 84</tspan><tspan fill="#f5d000" dx="16">|...&lt;/...|</tspan></text>
+    <text x="66" y="462" fill="#8a8f98">SUSPICIOUS STRINGS</text>
+    <rect x="66" y="478" width="310" height="24" rx="5" fill="#3a1216"/>
+    <text x="78" y="495" fill="#ff6b6b" font-size="13">"kernel32.dll!VirtualAlloc"</text>
+    <rect x="392" y="478" width="270" height="24" rx="5" fill="#3a1216"/>
+    <text x="404" y="495" fill="#ff6b6b" font-size="13">"cmd.exe /c powershell"</text>
+    <text x="678" y="495" fill="#8a8f98" font-size="13">+ 12 more</text>
+    <text x="66" y="540"><tspan fill="#5fd68b">$</tspan><tspan fill="#f2f3f4" dx="8">payload-lab deobfuscate --xor 0x37</tspan></text>
+    <text x="66" y="568" fill="#5fd68b">✓ recovered 3 urls · 1 registry key · 2 ip addresses</text>
+    <text x="66" y="596"><tspan fill="#339af0">→</tspan><tspan fill="#b9bfc7" dx="8">http://</tspan><tspan fill="#f5d000">185.220.[redacted].74</tspan><tspan fill="#b9bfc7" dx="4">/gate.php</tspan></text>
+    <text x="66" y="624"><tspan fill="#339af0">→</tspan><tspan fill="#b9bfc7" dx="8">HKCU\Software\Run\ updater = svchost32.exe</tspan></text>
+    <text x="66" y="660"><tspan fill="#5fd68b">$</tspan><tspan fill="#f5d000" dx="8">█</tspan></text>
+  </g>
+  <!-- status bar -->
+  <line x1="36" y1="688" x2="1164" y2="688" stroke="#2a2d31"/>
+  <g font-size="12" fill="#8a8f98">
+    <text x="66" y="710">ENTROPY 6.41</text>
+    <text x="230" y="710">ARCH x86_64</text>
+    <text x="380" y="710">PACKED: NO</text>
+    <text x="530" y="710">IOC: 6</text>
+    <text x="1060" y="710" fill="#5fd68b">● ANALYZED</text>
+  </g>
+</svg>

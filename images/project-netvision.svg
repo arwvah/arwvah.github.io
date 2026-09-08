@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750" font-family="GeistMono, Consolas, monospace">
+  <rect width="1200" height="750" fill="#101114"/>
+  <rect x="36" y="36" width="1128" height="678" rx="16" fill="#17181a" stroke="#2a2d31" stroke-width="1.5"/>
+  <!-- titlebar -->
+  <line x1="36" y1="86" x2="1164" y2="86" stroke="#2a2d31"/>
+  <circle cx="70" cy="61" r="6" fill="#ff5f57"/><circle cx="92" cy="61" r="6" fill="#febc2e"/><circle cx="114" cy="61" r="6" fill="#28c840"/>
+  <text x="140" y="66" fill="#8a8f98" font-size="13">NetVision — live map</text>
+  <!-- sidebar -->
+  <line x1="230" y1="86" x2="230" y2="714" stroke="#2a2d31"/>
+  <g font-size="13">
+    <rect x="58" y="112" width="12" height="12" rx="3" fill="#5fd68b"/><text x="82" y="123" fill="#e6e6e6">Devices</text>
+    <rect x="58" y="152" width="12" height="12" rx="3" fill="#339af0"/><text x="82" y="163" fill="#8a8f98">Traffic</text>
+    <rect x="58" y="192" width="12" height="12" rx="3" fill="#f5d000"/><text x="82" y="203" fill="#8a8f98">Ports</text>
+    <rect x="58" y="232" width="12" height="12" rx="3" fill="#ff6b6b"/><text x="82" y="243" fill="#8a8f98">Alerts</text>
+    <rect x="58" y="272" width="12" height="12" rx="3" fill="#4c6ef5"/><text x="82" y="283" fill="#8a8f98">Logs</text>
+    <rect x="58" y="312" width="12" height="12" rx="3" fill="#12b886"/><text x="82" y="323" fill="#8a8f98">Scan</text>
+  </g>
+  <!-- header -->
+  <text x="270" y="130" fill="#e6e6e6" font-size="18" font-weight="bold">NETWORK OVERVIEW</text>
+  <text x="270" y="152" fill="#8a8f98" font-size="12">192.168.1.0/24 · live via WebSocket · updated 2s ago</text>
+  <!-- stat cards -->
+  <g font-size="12">
+    <rect x="270" y="176" width="200" height="78" rx="10" fill="#1d2024"/>
+    <text x="288" y="202" fill="#8a8f98">HOSTS</text><text x="288" y="234" fill="#e6e6e6" font-size="22">128</text>
+    <rect x="486" y="176" width="200" height="78" rx="10" fill="#1d2024"/>
+    <text x="504" y="202" fill="#8a8f98">ALERTS</text><text x="504" y="234" fill="#ff6b6b" font-size="22">14</text>
+    <rect x="702" y="176" width="200" height="78" rx="10" fill="#1d2024"/>
+    <text x="720" y="202" fill="#8a8f98">THROUGHPUT</text><text x="720" y="234" fill="#5fd68b" font-size="22">42 MB/s</text>
+    <rect x="918" y="176" width="222" height="78" rx="10" fill="#1d2024"/>
+    <text x="936" y="202" fill="#8a8f98">UPTIME</text><text x="936" y="234" fill="#f5d000" font-size="22">99.98%</text>
+  </g>
+  <!-- bar chart -->
+  <text x="270" y="292" fill="#8a8f98" font-size="12">TRAFFIC / 24H</text>
+  <g>
+    <rect x="270" y="436" width="34" height="60" rx="4" fill="#2e5c46"/><rect x="312" y="396" width="34" height="100" rx="4" fill="#5fd68b"/><rect x="354" y="416" width="34" height="80" rx="4" fill="#2e5c46"/><rect x="396" y="366" width="34" height="130" rx="4" fill="#339af0"/><rect x="438" y="426" width="34" height="70" rx="4" fill="#2e5c46"/><rect x="480" y="376" width="34" height="120" rx="4" fill="#5fd68b"/><rect x="522" y="346" width="34" height="150" rx="4" fill="#339af0"/><rect x="564" y="406" width="34" height="90" rx="4" fill="#2e5c46"/><rect x="606" y="356" width="34" height="140" rx="4" fill="#5fd68b"/><rect x="648" y="306" width="34" height="190" rx="4" fill="#f5d000"/><rect x="690" y="386" width="34" height="110" rx="4" fill="#2e5c46"/><rect x="732" y="336" width="34" height="160" rx="4" fill="#5fd68b"/>
+  </g>
+  <line x1="270" y1="496" x2="780" y2="496" stroke="#2a2d31"/>
+  <!-- line chart -->
+  <text x="820" y="292" fill="#8a8f98" font-size="12">CONNECTIONS</text>
+  <polyline points="820,470 850,440 880,455 910,410 940,425 970,380 1000,395 1030,350 1060,365 1090,320 1120,335 1150,300" fill="none" stroke="#5fd68b" stroke-width="2.5"/>
+  <circle cx="1150" cy="300" r="4" fill="#5fd68b"/>
+  <line x1="820" y1="496" x2="1164" y2="496" stroke="#2a2d31"/>
+  <!-- table -->
+  <text x="270" y="530" fill="#8a8f98" font-size="12">ACTIVE HOSTS</text>
+  <g font-size="13">
+    <circle cx="278" cy="560" r="4" fill="#5fd68b"/><text x="296" y="565" fill="#e6e6e6">homelab-nas</text><text x="470" y="565" fill="#8a8f98">192.168.1.10</text><rect x="640" y="547" width="52" height="22" rx="6" fill="#1d2024"/><text x="650" y="562" fill="#339af0" font-size="11">445</text><rect x="710" y="547" width="52" height="22" rx="6" fill="#1d2024"/><text x="720" y="562" fill="#f5d000" font-size="11">5000</text><rect x="1040" y="547" width="70" height="22" rx="11" fill="#123322"/><text x="1052" y="562" fill="#5fd68b" font-size="11">OK</text>
+    <circle cx="278" cy="600" r="4" fill="#339af0"/><text x="296" y="605" fill="#e6e6e6">dev-workstation</text><text x="470" y="605" fill="#8a8f98">192.168.1.24</text><rect x="640" y="587" width="52" height="22" rx="6" fill="#1d2024"/><text x="652" y="602" fill="#339af0" font-size="11">22</text><rect x="710" y="587" width="52" height="22" rx="6" fill="#1d2024"/><text x="722" y="602" fill="#f5d000" font-size="11">8080</text><rect x="1040" y="587" width="70" height="22" rx="11" fill="#123322"/><text x="1052" y="602" fill="#5fd68b" font-size="11">OK</text>
+    <circle cx="278" cy="640" r="4" fill="#ff6b6b"/><text x="296" y="645" fill="#e6e6e6">unknown-host</text><text x="470" y="645" fill="#8a8f98">192.168.1.87</text><rect x="640" y="627" width="52" height="22" rx="6" fill="#1d2024"/><text x="650" y="642" fill="#ff6b6b" font-size="11">??</text><rect x="710" y="627" width="52" height="22" rx="6" fill="#1d2024"/><text x="722" y="642" fill="#f5d000" font-size="11">1337</text><rect x="1040" y="627" width="70" height="22" rx="11" fill="#3a1216"/><text x="1050" y="642" fill="#ff6b6b" font-size="11">FLAG</text>
+    <circle cx="278" cy="680" r="4" fill="#5fd68b"/><text x="296" y="685" fill="#e6e6e6">pi-hole</text><text x="470" y="685" fill="#8a8f98">192.168.1.2</text><rect x="640" y="667" width="52" height="22" rx="6" fill="#1d2024"/><text x="652" y="682" fill="#339af0" font-size="11">53</text><rect x="710" y="667" width="52" height="22" rx="6" fill="#1d2024"/><text x="722" y="682" fill="#f5d000" font-size="11">80</text><rect x="1040" y="667" width="70" height="22" rx="11" fill="#123322"/><text x="1052" y="682" fill="#5fd68b" font-size="11">OK</text>
+  </g>
+</svg>
