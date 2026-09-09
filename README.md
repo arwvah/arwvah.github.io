@@ -1,6 +1,6 @@
 # arwah.github.io
 
-Personal portfolio of [arwah](https://github.com/arwah), published via GitHub Pages at **https://arwah.github.io**
+Personal portfolio of [arwah](https://github.com/arwah), published via GitHub Pages at **https://arwvah.github.io**
 
 ## Stack
 
