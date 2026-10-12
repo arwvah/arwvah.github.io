@@ -1,1 +1,1 @@
-import{t as e}from"./createLucideIcon-BmqPXz9O.js";var t=e(`check`,[[`path`,{d:`M20 6 9 17l-5-5`,key:`1gmf2c`}]]);export{t};
+import{t as e}from"./createLucideIcon-BmqPXz9O.js?v=20261012-2";var t=e(`check`,[[`path`,{d:`M20 6 9 17l-5-5`,key:`1gmf2c`}]]);export{t};

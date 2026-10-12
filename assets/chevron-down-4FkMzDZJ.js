@@ -1,1 +1,1 @@
-import{t as e}from"./createLucideIcon-BmqPXz9O.js";var t=e(`chevron-down`,[[`path`,{d:`m6 9 6 6 6-6`,key:`qrunsl`}]]);export{t};
+import{t as e}from"./createLucideIcon-BmqPXz9O.js?v=20261012-2";var t=e(`chevron-down`,[[`path`,{d:`m6 9 6 6 6-6`,key:`qrunsl`}]]);export{t};
