@@ -1,4 +1,4 @@
-(function(){try{var e=typeof window<`u`?window:typeof global<`u`?global:typeof globalThis<`u`?globalThis:typeof self<`u`?self:{};e.SENTRY_RELEASE={id:`rechroma-production@44db41d`};var t=new e.Error().stack;t&&(e._sentryDebugIds=e._sentryDebugIds||{},e._sentryDebugIds[t]=`e9027345-1d63-4495-905d-a5716cac9cff`,e._sentryDebugIdIdentifier=`sentry-dbid-e9027345-1d63-4495-905d-a5716cac9cff`)}catch{}})();var e=JSON.parse(`[
+var e=JSON.parse(`[
 	{
 		"name": "Black",
 		"hex": "#000000",
