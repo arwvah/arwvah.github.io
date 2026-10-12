@@ -1,1 +1,1 @@
-import{t as e}from"./jsx-runtime-DeOjixGm.js?v=20261012-2";var t=e();function n({children:e,className:n,screenClassName:r,...i}){let a=[`screen`,n,r].filter(Boolean).join(` `);return(0,t.jsx)(`div`,{className:a,...i,children:e})}export{n as t};
+import{t as e}from"./jsx-runtime-DeOjixGm.js?v=20261012-3";var t=e();function n({children:e,className:n,screenClassName:r,...i}){let a=[`screen`,n,r].filter(Boolean).join(` `);return(0,t.jsx)(`div`,{className:a,...i,children:e})}export{n as t};
