@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoSINT — We Have — arwah</title><meta name="description" content="Identify the precise location shown in wehavegeosint.jpg and submit it to the GeoSINT challenge."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">OSINT · 2 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#objective">Objective</a></li><li><a href="#observations">Observations</a></li><li><a href="#narrowing-the-location">Narrowing the location</a></li><li><a href="#submission">Submission</a></li><li><a href="#final-location">Final location</a></li><li><a href="#references">References</a></li></ul></details><article class="prose"><h1 id="geosint-we-have">GeoSINT — We Have</h1>
+<h2 id="objective">Objective</h2>
+<p>Identify the precise location shown in <code>we_have_geosint.jpg</code> and submit it to the GeoSINT challenge.</p>
+<h2 id="observations">Observations</h2>
+<ul>
+<li>The car fleet, road markings, street lighting, and white-painted tree trunks point to <strong>Tashkent, Uzbekistan</strong>.</li>
+<li>The image was taken from a glass-sided elevated pedestrian crossing over a broad, divided six-lane boulevard.</li>
+<li>A mature park lies on one side of the road, while a paved entrance/plaza and a distinctive mid-rise building appear on the other.</li>
+</ul>
+<h2 id="narrowing-the-location">Narrowing the location</h2>
+<p>Tashkent has several large Bunyodkor Avenue interchanges. The initial Bunyodkor–Seoul candidate was tested and rejected, so it was ruled out rather than pursued further.</p>
+<p>The decisive match was the <strong>Bunyodkor Avenue–Cho'ponota Street interchange</strong>:</p>
+<ul>
+<li>it carries a six-lane Bunyodkor overpass;</li>
+<li>it has paired, glass-sided pedestrian crossings with lifts/escalators;</li>
+<li>it sits beside G'afur G'ulom Park, matching the trees and open park-side space in the image.</li>
+</ul>
+<p>Public reports on the 2018 opening confirm the location and the two 124 m pedestrian crossings.</p>
+<h2 id="submission">Submission</h2>
+<p>Submitted the midpoint of the two mapped pedestrian crossings:</p>
+<pre><code class="language-text">Latitude:  41.28210
+Longitude: 69.21240
+</code></pre>
+<p>The challenge returned <code>status: correct</code> and the flag:</p>
+<pre><code class="language-text">CTF.UZ{B1zd4_Buny0dk0r_st4d10n1_b0r!}
+</code></pre>
+<h2 id="final-location">Final location</h2>
+<p><strong>Bunyodkor Avenue × Cho'ponota Street pedestrian overpass, Tashkent, Uzbekistan</strong></p>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://president.uz/en/1929">President of Uzbekistan — bridge opening</a></li>
+<li><a href="https://kun.uz/news/2018/08/10/fotoreportaz-cilonzordagi-angi-kuprik">Kun.uz — Bunyodkor bridge photo report</a></li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

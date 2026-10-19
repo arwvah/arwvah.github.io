@@ -1,0 +1,75 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>De Monne Financial — Hidden Activity — Writeup — arwah</title><meta name="description" content="The De Monne Financial banking app ships an internal Diagnostics activity that is accidentally marked android:exported=&quot;true&quot; in AndroidManifest.xml. Any app or adb user on the device…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Mobile / API · 2 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#recon">Recon</a></li><li><a href="#finding-the-misconfiguration">Finding the misconfiguration</a></li><li><a href="#triggering-it">Triggering it</a></li><li><a href="#flag">Flag</a></li><li><a href="#notes-other-findings-in-the-same-apk">Notes / other findings in the same APK</a></li></ul></details><article class="prose"><h1 id="de-monne-financial-hidden-activity-writeup">De Monne Financial — Hidden Activity — Writeup</h1>
+<p><strong>Category:</strong> Mobile / Android
+<strong>Challenge:</strong> &quot;One of De Monne's developers suspects there is hidden activity occurring in the app, possibly due to manifest misconfigurations.&quot;
+<strong>Flag:</strong> <code>deadface{flaG_ManIfesT3d}</code>
+<strong>Artifact:</strong> <code>app-release.zip</code> → <code>app-release.apk</code> (<code>com.demonne.financial</code>, version 2.4.1 (5))</p>
+<h2 id="summary">Summary</h2>
+<p>The De Monne Financial banking app ships an internal <code>Diagnostics</code> activity that
+is accidentally marked <code>android:exported=&quot;true&quot;</code> in <code>AndroidManifest.xml</code>. Any app
+or adb user on the device can launch it directly — no login required — and its
+hardcoded diagnostic output contains the flag.</p>
+<h2 id="recon">Recon</h2>
+<p>The zip contains a single APK. Unpack it and decompile:</p>
+<pre><code class="language-bash">unzip app-release.zip          # -&gt; app-release.apk
+unzip app-release.apk -d apk   # -&gt; classes.dex, classes2.dex, AndroidManifest.xml, ...
+</code></pre>
+<p>An initial <code>strings</code> sweep of the dex files already leaks the challenge's theme:</p>
+<pre><code>$ strings -n 6 apk/classes*.dex | grep -i deadface
+diagnostic.code : deadface{flaG_ManIfesT3d}
+Authorization Code: deadface{Ur_N0t_A110wEd_h3r3}
+</code></pre>
+<p>Two flag-shaped strings — one labeled <code>diagnostic.code</code>, one <code>Authorization Code</code>.
+This challenge is the diagnostic one.</p>
+<h2 id="finding-the-misconfiguration">Finding the misconfiguration</h2>
+<p>Parsing the binary manifest with androguard (<code>androguard.core.apk.APK</code> →
+<code>get_android_manifest_axml()</code>) shows seven activities. Only two are exported,
+and only one of them is suspicious:</p>
+<pre><code class="language-xml">&lt;activity android:name=&quot;com.demonne.financial.SplashActivity&quot; android:exported=&quot;true&quot;&gt;
+    ... launcher intent-filter ...
+&lt;/activity&gt;
+
+&lt;activity android:theme=&quot;@7F110224&quot; android:label=&quot;Diagnostics&quot;
+          android:name=&quot;com.demonne.financial.internal.DiagnosticActivity&quot;
+          android:exported=&quot;true&quot;/&gt;          &lt;!-- no intent-filter, yet exported --&gt;
+</code></pre>
+<p><code>com.demonne.financial.internal.DiagnosticActivity</code> lives in an <code>internal/</code>
+package, has <strong>no</strong> <code>intent-filter</code> (so it was never meant to be launchable),
+and is still <code>exported=&quot;true&quot;</code> — the classic manifest misconfiguration. Every
+other non-launcher activity is correctly <code>exported=&quot;false&quot;</code>.</p>
+<h2 id="triggering-it">Triggering it</h2>
+<p><code>DiagnosticActivity.onCreate()</code> just <code>setContentView()</code>s and calls
+<code>TextView.setText()</code> with a fully hardcoded diagnostic report
+(<code>build.version</code>, <code>build.env : production</code>, <code>api.endpoint : http://dmf.dctf.io:8081</code>, device info, and the flag between box-drawing
+rules). No authentication, no session check.</p>
+<p>Launch it directly on a device/emulator with the app installed:</p>
+<pre><code class="language-bash">adb shell am start -n com.demonne.financial/.internal.DiagnosticActivity
+</code></pre>
+<p>The Diagnostics screen renders:</p>
+<pre><code>build.version   : 2.4.1 (5)
+build.env       : production
+build.timestamp : 2026-01-14T09:00:00Z
+api.endpoint    : http://dmf.dctf.io:8081
+...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+diagnostic.code : deadface{flaG_ManIfesT3d}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+status          : internal build — not for distribution
+</code></pre>
+<h2 id="flag">Flag</h2>
+<pre><code>deadface{flaG_ManIfesT3d}
+</code></pre>
+<h2 id="notes-other-findings-in-the-same-apk">Notes / other findings in the same APK</h2>
+<ul>
+<li><code>SecureVaultActivity</code> gates a &quot;RESTRICTED&quot; compliance document behind a
+<code>SecurityUtils.isDeviceRooted()</code> check (different challenge; its hardcoded
+<code>Authorization Code</code> is <code>deadface{Ur_N0t_A110wEd_h3r3}</code>).</li>
+<li><code>ApiClient</code> hardcodes <code>INTERNAL_API_TOKEN</code>
+(<code>zqJRlVwBA9Xm2lE5EPjgbj/4rOxlkYZgDtkdP7jV80rZgLFrlnOEn+VAu31YKQrR</code>) that
+<code>InternalTokenInterceptor</code> attaches as <code>X-Internal-Token</code> to <strong>every</strong>
+request, and <code>LoginActivity</code> contains a hidden developer login
+(<code>audit@demonne-financial.local</code> / <code>demonnefinancial</code>) — relevant to the
+other De Monne challenges, not this one.</li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

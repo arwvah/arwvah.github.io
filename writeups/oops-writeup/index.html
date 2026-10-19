@@ -1,0 +1,129 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Oops — CTF Writeup — arwah</title><meta name="description" content="The archive contained a Python project and its .git directory. Someone had deleted a configuration file and an encrypted secret, but both files were still available in earlier commits.…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Forensics · 4 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#overview">Overview</a></li><li><a href="#1-inspect-the-archive">1. Inspect the archive</a></li><li><a href="#2-recover-the-rar-password">2. Recover the RAR password</a></li><li><a href="#3-inspect-the-git-history">3. Inspect the Git history</a></li><li><a href="#4-recover-the-deleted-files">4. Recover the deleted files</a></li><li><a href="#5-decrypt-the-secret">5. Decrypt the secret</a></li><li><a href="#flag">Flag</a></li><li><a href="#why-the-cleanup-failed">Why the cleanup failed</a></li></ul></details><article class="prose"><h1 id="oops-ctf-writeup">Oops — CTF Writeup</h1>
+<p><strong>Author:</strong> bratxer<br />
+<strong>Category:</strong> Forensics / Git history<br />
+<strong>Challenge file:</strong> <code>oops.rar</code></p>
+<blockquote>
+<p>Someone panicked and cleaned up. But Git didn't :)</p>
+</blockquote>
+<h2 id="overview">Overview</h2>
+<p>The archive contained a Python project and its <code>.git</code> directory. Someone had deleted a configuration file and an encrypted secret, but both files were still available in earlier commits. Recovering them revealed the password needed to decrypt the flag.</p>
+<p>There was also an initial obstacle: although no archive password was supplied, the RAR file was encrypted. A dictionary attack recovered its password as <code>pepper</code>.</p>
+<h2 id="1-inspect-the-archive">1. Inspect the archive</h2>
+<pre><code class="language-bash">file /home/arwah/Downloads/oops.rar
+bsdtar -tf /home/arwah/Downloads/oops.rar
+</code></pre>
+<p>The file was identified as a RAR v5 archive. Its contents included:</p>
+<pre><code class="language-text">oops/.git/
+oops/.gitignore
+oops/README.md
+oops/requirements.txt
+oops/scraper.py
+</code></pre>
+<p>The <code>.git</code> directory was the main lead. It contained commit objects, branch references, and reflogs, so the files visible in the latest version were only part of the evidence.</p>
+<p>An extraction attempt with <code>bsdtar</code> returned:</p>
+<pre><code class="language-text">Reading encrypted data is not currently supported
+</code></pre>
+<p>Listing the filenames did not mean the file contents were unencrypted.</p>
+<h2 id="2-recover-the-rar-password">2. Recover the RAR password</h2>
+<p>John the Ripper's <code>rar2john</code> utility extracted RAR5 password-check records. The records shared the same salt and password check, so one record was enough for this attempt.</p>
+<p>The following commands reproduce the recovery in a separate working directory. They assume <code>rar2john</code>, <code>john</code>, <code>unrar</code>, Git, and OpenSSL are available. The wordlist path is the one used on this machine.</p>
+<pre><code class="language-bash">mkdir -p ~/oops-solve
+cd ~/oops-solve
+
+rar2john /home/arwah/Downloads/oops.rar &gt; rar-records.txt
+head -n 1 rar-records.txt &gt; oops.hash
+
+OMP_NUM_THREADS=8 john \
+  --format=rar5 \
+  --wordlist=/usr/share/john/password.lst \
+  --pot=./oops.pot \
+  oops.hash
+</code></pre>
+<p>John recovered:</p>
+<pre><code class="language-text">pepper
+</code></pre>
+<p>Extract the archive using that password:</p>
+<pre><code class="language-bash">unrar x -ppepper /home/arwah/Downloads/oops.rar ./
+cd oops
+</code></pre>
+<p>During the solve, extraction completed with <code>All OK</code>, confirming the password worked on the actual archive.</p>
+<h2 id="3-inspect-the-git-history">3. Inspect the Git history</h2>
+<pre><code class="language-bash">git --no-pager log --all --oneline
+git --no-pager log --all -p --no-ext-diff
+git --no-pager reflog --all
+</code></pre>
+<p>The history contained five commits, shown here from newest to oldest:</p>
+<table>
+<thead>
+<tr>
+<th>Commit</th>
+<th>Message</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>58ebcdc</code></td>
+<td>removed build artifacts</td>
+</tr>
+<tr>
+<td><code>13e35f3</code></td>
+<td>cleanup: removed old config file</td>
+</tr>
+<tr>
+<td><code>f32423e</code></td>
+<td>added build artifacts</td>
+</tr>
+<tr>
+<td><code>6e2b824</code></td>
+<td>added config</td>
+</tr>
+<tr>
+<td><code>4fa5670</code></td>
+<td>initial commit</td>
+</tr>
+</tbody>
+</table>
+<p>The cleanup commits deleted two interesting files:</p>
+<ul>
+<li><code>config.bak</code>, which contained a plaintext password.</li>
+<li><code>secret.enc</code>, which contained encrypted data.</li>
+</ul>
+<p>The patch for the configuration deletion exposed the original line:</p>
+<pre><code class="language-diff">-Sup3r_M3g4_Ultr4_S3cr3t_P4ssw0rd!
+</code></pre>
+<p>The secret appeared as a binary file in the diff, so it needed to be recovered directly from its earlier commit.</p>
+<h2 id="4-recover-the-deleted-files">4. Recover the deleted files</h2>
+<p>From inside the extracted <code>oops</code> repository:</p>
+<pre><code class="language-bash">git show 6e2b824:config.bak &gt; ../config.bak
+git show f32423e:secret.enc &gt; ../secret.enc
+</code></pre>
+<p><code>git show &lt;commit&gt;:&lt;path&gt;</code> reads a file as it existed in that commit. No checkout or history modification was needed.</p>
+<p>The recovered configuration contained:</p>
+<pre><code class="language-text">Sup3r_M3g4_Ultr4_S3cr3t_P4ssw0rd!
+</code></pre>
+<p>Identify the encrypted file:</p>
+<pre><code class="language-bash">file ../secret.enc
+od -Ax -tx1z ../secret.enc
+</code></pre>
+<p>The <code>file</code> result was:</p>
+<pre><code class="language-text">openssl enc'd data with salted password
+</code></pre>
+<p>Its first eight bytes were <code>Salted__</code>, the recognizable header used by salted OpenSSL <code>enc</code> output. This identified the format, but the header alone did not specify the cipher or key derivation settings.</p>
+<h2 id="5-decrypt-the-secret">5. Decrypt the secret</h2>
+<p>AES-256-CBC with PBKDF2 was tried using the recovered configuration as the password source:</p>
+<pre><code class="language-bash">openssl enc -d -aes-256-cbc -pbkdf2 \
+  -in ../secret.enc \
+  -pass file:../config.bak
+</code></pre>
+<p>This command succeeded and printed:</p>
+<pre><code class="language-text">CTF.UZ{Think_7_t1m3s_bef0re_u_pushh}
+</code></pre>
+<p>The readable flag and successful decryption confirmed these settings for this challenge. The RAR password (<code>pepper</code>) and the encrypted secret's password were separate credentials.</p>
+<h2 id="flag">Flag</h2>
+<pre><code class="language-text">CTF.UZ{Think_7_t1m3s_bef0re_u_pushh}
+</code></pre>
+<h2 id="why-the-cleanup-failed">Why the cleanup failed</h2>
+<p>Deleting a tracked file in a later commit removes it from that version of the project. Earlier commits still preserve its contents. Here, both the encryption password and the ciphertext remained accessible through normal Git history.</p>
+<p>The repository also included <code>*.enc</code> in <code>.gitignore</code>. That rule did not erase the committed secret or remove it from older snapshots. Ignore rules are not a way to purge sensitive data from Git.</p>
+<p>The challenge was solved by recovering the deleted files and using the exposed password; it did not require breaking AES encryption. In a real incident, exposed credentials should be revoked or rotated, followed by coordinated removal of sensitive material from repository history and other retained copies.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

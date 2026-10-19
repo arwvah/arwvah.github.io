@@ -1,0 +1,70 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Spooky Cereals 02 — Nordics — arwah</title><meta name="description" content="An encrypted 7z (password KlippyAI) holds two sibling binaries (Linux x86 ELF + Windows x86 PE) that XOR a 256-byte &quot;One Time Pad&quot; against 256 bytes of data and search the output for the…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Reverse Engineering · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#solution">Solution</a></li><li><a href="#flag">Flag</a></li></ul></details><article class="prose"><h1 id="spooky-cereals-02-nordics">Spooky Cereals 02 — Nordics</h1>
+<h2 id="summary">Summary</h2>
+<p>An encrypted 7z (password <code>KlippyAI</code>) holds two sibling binaries (Linux x86 ELF + Windows x86 PE) that XOR a 256-byte &quot;One Time Pad&quot; against 256 bytes of data and search the output for the magic prefix <code>badff00d</code>. The shipped key is intentionally corrupted (&quot;the key has been tampered with... TIME is REVERSIBLE, but the KEY is NOT&quot;), and a bundled ConfuserEx-packed .NET helper (<code>KlippyAI</code>) leaks the repair: the Nordics hit Lytton Labs with Time-Reversal Rays while the key was captured — the key is byte-REVERSED. Reversing the key and re-XORing yields an ASCII banner containing the flag, written mirrored.</p>
+<h2 id="solution">Solution</h2>
+<h3 id="step-1-reverse-the-xor-logic-in-the-linux-binary">Step 1: Reverse the XOR logic in the Linux binary</h3>
+<p><code>re03-lin-x86.bin</code> (<code>main</code> at <code>0x133b</code>) copies two <code>.rodata</code> blobs to the stack, XORs them byte-wise for 256 bytes, then calls <code>memmem(out, 0x100, &quot;badff00d&quot;, 7)</code>. Disassembly of the check:</p>
+<pre><code class="language-asm">166d: mov DWORD PTR [ebp-0x325],0x66646162   ; &quot;badf&quot;
+1677: mov WORD  PTR [ebp-0x321],0x3030       ; &quot;00&quot;
+1680: mov BYTE  PTR [ebp-0x31f],0x64         ; &quot;d&quot;
+1695: push 7 ; push 0x100 ; push out ; call memmem
+16b1: jne WARNING_BRANCH                     ; found -&gt; flag printed
+</code></pre>
+<p>Running it fails the check (&quot;key has been tampered with&quot;). The runtime buffers (dumped with gdb at the <code>memmem</code>-return, <code>base+0x16a1</code>) are the ground truth: <code>B1</code> = the 256-byte key, <code>B2</code> = the encrypted data, <code>B1 ^ B2</code> = garbage.</p>
+<h3 id="step-2-extract-the-hidden-hint-from-klippyai">Step 2: Extract the hidden hint from KlippyAI</h3>
+<p><code>KlippyAI-trained-on-CK02.exe</code> is a ConfuserEx-packed .NET exe. Run it under Mono (user-space Arch package, plus stub symlinks for <code>libSystem.Native.so</code>), drive the menu over a pty, choose <strong>[A] Analyze File</strong> and give it the Linux binary. Klippy narrates:</p>
+<blockquote>
+<p>the Nordics were blasting Lytton Labs with time-reversal rays (TRRs)... the XOR key data is in REVERSE! If you can somehow manage to reverse the XOR key data, you should be able to recover the flag!</p>
+</blockquote>
+<h3 id="step-3-reverse-the-key-xor-read-the-mirrored-banner">Step 3: Reverse the key, XOR, read the mirrored banner</h3>
+<p>One script from buffers to flag:</p>
+<pre><code class="language-python">#!/usr/bin/env python3
+&quot;&quot;&quot;Dump the runtime key/enc buffers with gdb, reverse the key, decode the flag.&quot;&quot;&quot;
+import subprocess
+
+GDB = r&quot;&quot;&quot;
+set confirm off
+set pagination off
+file /tmp/spooky/ck02/re03-lin-x86.bin
+starti
+python
+import gdb
+base = None
+for line in gdb.execute('info proc mappings', to_string=True).splitlines():
+    if 're03-lin-x86.bin' in line:
+        base = int(line.split()[0], 16); break
+gdb.execute('break *%d' % (base + 0x16a1))   # after memmem returns
+gdb.execute('continue')
+ebp = int(gdb.parse_and_eval('$ebp'))
+inf = gdb.selected_inferior()
+open('runtime_b1.bin','wb').write(bytes(inf.read_memory(ebp-0x21e, 0x101)))  # key
+open('runtime_b2.bin','wb').write(bytes(inf.read_memory(ebp-0x31e, 0x100)))  # enc
+print('dumped')
+end
+quit
+&quot;&quot;&quot;
+open('dbg.gdb', 'w').write(GDB)
+subprocess.run(['gdb', '-q', '-x', 'dbg.gdb', '--batch'], capture_output=True)
+
+key = open('runtime_b1.bin', 'rb').read()[:256]
+enc = open('runtime_b2.bin', 'rb').read()[:256]
+
+# The TRR tamper: the key is byte-REVERSED. Undo it.
+plain = bytes(k ^ e for k, e in zip(key[::-1], enc))
+
+# The plaintext is an ASCII banner, mirrored (box art read backwards).
+s = plain.decode('latin1')
+core = ''.join(c for c in s if c not in '*\n .')[::-1]
+# core = feedfacedeadbeefdeadface{...}badf00dda7e4107
+print(core)
+print(&quot;deadface{&quot; + core.split('{')[1].split('}')[0] + &quot;}&quot;)
+</code></pre>
+<p>Output:</p>
+<pre><code>feedfacedeadbeefdeadface{N0rdics-R3ally-like-Frank3nb3rry-cuz-bro-is-tall-like-they-are!}badf00dda7e4107
+deadface{N0rdics-R3ally-like-Frank3nb3rry-cuz-bro-is-tall-like-they-are!}
+</code></pre>
+<p>The Nordics' favorite spooky cereal is <strong>Frank3nb3rry</strong> (spelled with 3s — the flag contains no spaces, periods, or asterisks, per the challenge note).</p>
+<h2 id="flag">Flag</h2>
+<pre><code>deadface{N0rdics-R3ally-like-Frank3nb3rry-cuz-bro-is-tall-like-they-are!}
+</code></pre>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

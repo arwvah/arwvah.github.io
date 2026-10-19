@@ -1,0 +1,210 @@
+[
+  {
+    "slug": "deadface2026-aurora-patient-portal-writeup",
+    "title": "Aurora Patient Portal — Deadface CTF Writeup",
+    "category": "Web / Database",
+    "summary": "Investigate mobile artifacts, a patient portal, and trial databases to reconstruct an attack chain across six DEADFACE challenges.",
+    "minutes": 9,
+    "source": "deadface2026-aurora-patient-portal-writeup.md"
+  },
+  {
+    "slug": "deadface2026-demonne-manifest-diagnostics-writeup",
+    "title": "De Monne Financial — Hidden Activity — Writeup",
+    "category": "Mobile / API",
+    "summary": "The De Monne Financial banking app ships an internal Diagnostics activity that is accidentally marked android:exported=\"true\" in AndroidManifest.xml. Any app or adb user on the device…",
+    "minutes": 2,
+    "source": "deadface2026-demonne-manifest-diagnostics-writeup.md"
+  },
+  {
+    "slug": "deadface2026-uninvited-guest-ntproofstr-writeup",
+    "title": "DEADFACE 2026 — Uninvited Guest: NTLMv2 NTProofStr",
+    "category": "Forensics",
+    "summary": "Follow a poisoned LLMNR reply through an SMB session and extract the NTLMv2 proof from packet evidence with tshark.",
+    "minutes": 1,
+    "source": "deadface2026-uninvited-guest-ntproofstr-writeup.md"
+  },
+  {
+    "slug": "deadface2026-aurora-veltrexa-data-lock-writeup",
+    "title": "DEADFACE CTF — Aurora Health: Veltrexa Data-Lock Tampering",
+    "category": "Web / Database",
+    "summary": "Find the subject whose primary efficacy result was modified after the Veltrexa study's official data-lock date. The result must have measure = 'primaryefficacydelta', and the lock date…",
+    "minutes": 4,
+    "source": "deadface2026-aurora-veltrexa-data-lock-writeup.md"
+  },
+  {
+    "slug": "deadface2026-hard-kept-secrets-idor-writeup",
+    "title": "DEADFACE CTF — Hard Kept Secrets: De Monne Financial IDOR",
+    "category": "Mobile / API",
+    "summary": "The app exposes an insecure direct object reference (IDOR): an authenticated audit user who owns no accounts can still request records for another account by changing the numeric account…",
+    "minutes": 5,
+    "source": "deadface2026-hard-kept-secrets-idor-writeup.md"
+  },
+  {
+    "slug": "deadface2026-reptilians-re04-writeup",
+    "title": "DEADFACE CTF — Reptilians / Lizard People",
+    "category": "Reverse Engineering",
+    "summary": "The password and decoded flag both match the MD5 values embedded in the executable. This solution uses static analysis and a reconstruction of the decoder. The Windows executable was not…",
+    "minutes": 6,
+    "source": "deadface2026-reptilians-re04-writeup.md"
+  },
+  {
+    "slug": "deadface-ctf-writeup",
+    "title": "DEADFACE CTF — Writeup",
+    "category": "Mixed Challenges",
+    "summary": "We intercepted a DEADFACE hacker's laptop and determined he had stolen a man named Daniel's entire identity. Identify which DEADFACE member is responsible.",
+    "minutes": 11,
+    "source": "deadface-ctf-writeup.md"
+  },
+  {
+    "slug": "deadface2026-grave-encounters-jerry-leak-writeup",
+    "title": "Grave Encounters — Jerry's Leaks — Writeup",
+    "category": "Web",
+    "summary": "A static movie board on port 8080 leaks its own backend source code (/server.py), which contains a privileged session cookie. Replaying that cookie in a WebSocket handshake to the…",
+    "minutes": 3,
+    "source": "deadface2026-grave-encounters-jerry-leak-writeup.md"
+  },
+  {
+    "slug": "deadface2026-pcap03-http-exfil-writeup",
+    "title": "PCAP03 — Sneaky HTTP Exfiltration — Writeup",
+    "category": "Forensics",
+    "summary": "A workstation (10.20.30.40) browses a stream of harmless-looking websites — BBC, NYT, Reddit, YouTube, GitHub, weather APIs — with equally boring POSTs (comment=nice+post,…",
+    "minutes": 3,
+    "source": "deadface2026-pcap03-http-exfil-writeup.md"
+  },
+  {
+    "slug": "deadface2026-skeleton-key-writeup",
+    "title": "Skeleton Key — Writeup",
+    "category": "Binary Exploitation",
+    "summary": "Sequel to The Crypt. The binary greets you with \"Well, deep in that old crypt, you found your key... but do you know how to use it?\" — this time the win function takes an argument:…",
+    "minutes": 2,
+    "source": "deadface2026-skeleton-key-writeup.md"
+  },
+  {
+    "slug": "deadface2026-spooky-cereals-02-nordics",
+    "title": "Spooky Cereals 02 — Nordics",
+    "category": "Reverse Engineering",
+    "summary": "An encrypted 7z (password KlippyAI) holds two sibling binaries (Linux x86 ELF + Windows x86 PE) that XOR a 256-byte \"One Time Pad\" against 256 bytes of data and search the output for the…",
+    "minutes": 3,
+    "source": "deadface2026-spooky-cereals-02-nordics.md"
+  },
+  {
+    "slug": "deadface2026-the-crypt-writeup",
+    "title": "The Crypt — Writeup",
+    "category": "Binary Exploitation",
+    "summary": "A 513 MiB \"mystery\" file is 99.996% random padding — the real artifact is a tiny non-PIE x86-64 ELF glued to the front. Stage 1 hides a secret code in .data (XOR 0x13, cheekily named…",
+    "minutes": 2,
+    "source": "deadface2026-the-crypt-writeup.md"
+  },
+  {
+    "slug": "deadface2026-uninvited-guest-writeup",
+    "title": "Uninvited Guest — Writeup",
+    "category": "Forensics",
+    "summary": "The companion pcap to Who Goes There? captures the initial access: LLMNR poisoning of the file-server name, the NTLMv2 credential leak it triggers, the attacker relaying into the real…",
+    "minutes": 3,
+    "source": "deadface2026-uninvited-guest-writeup.md"
+  },
+  {
+    "slug": "deadface2026-who-goes-there-telemetry-source-writeup",
+    "title": "Who Goes There? — Telemetry Script Source",
+    "category": "Forensics",
+    "summary": "Recover the source of a telemetry script from a Windows memory image and connect its transfer command to the persistence investigation.",
+    "minutes": 2,
+    "source": "deadface2026-who-goes-there-telemetry-source-writeup.md"
+  },
+  {
+    "slug": "deadface2026-who-goes-there-writeup",
+    "title": "Who Goes There? — Writeup",
+    "category": "Forensics",
+    "summary": "A rogue Kali device landed on De Monne Financial's network and someone used a legitimate employee account to reach the file share. The workstation memory holds the whole story: the…",
+    "minutes": 3,
+    "source": "deadface2026-who-goes-there-writeup.md"
+  },
+  {
+    "slug": "googlectf-crypto",
+    "title": "Crypto Filter Maze",
+    "category": "Cryptography",
+    "summary": "Explore a graph-based cryptography challenge where leaked LWE error magnitudes reveal a route to recovering the hidden secret.",
+    "minutes": 2,
+    "source": "googleCTF crypto.txt"
+  },
+  {
+    "slug": "readme-geoint-challenges",
+    "title": "GeoINT CTF Write-ups",
+    "category": "OSINT",
+    "summary": "This index covers the four photo-geolocation challenges investigated in the current task. Every coordinate marked verified produced status: correct on the challenge platform.",
+    "minutes": 1,
+    "source": "README-geoint-challenges.md"
+  },
+  {
+    "slug": "geoint-never-rzd-arena-writeup",
+    "title": "GeoINT CTF — Never",
+    "category": "OSINT",
+    "summary": "Identify the exact camera position represented by the challenge photograph and submit its latitude and longitude to the platform.",
+    "minutes": 2,
+    "source": "geoint-never-rzd-arena-writeup.md"
+  },
+  {
+    "slug": "geoint-reflection-vienna-writeup",
+    "title": "GeoINT CTF — Reflection",
+    "category": "OSINT",
+    "summary": "Geolocate a photograph showing swans and gulls beside a broad river, then identify the precise point accepted by the challenge verifier.",
+    "minutes": 2,
+    "source": "geoint-reflection-vienna-writeup.md"
+  },
+  {
+    "slug": "geosint-first-capital-writeup",
+    "title": "GeoSINT CTF — First Capital",
+    "category": "OSINT",
+    "summary": "Given a photo of a residential street, identify the exact location where it was taken and submit precise coordinates on the challenge's Leaflet map. The platform's /api/verifylocation…",
+    "minutes": 3,
+    "source": "geosint-first-capital-writeup.md"
+  },
+  {
+    "slug": "geosint-long-way-saudi-writeup",
+    "title": "GeoSINT CTF — Long Way",
+    "category": "OSINT",
+    "summary": "Identify the exact road position from a desert photograph containing power lines and almost no conventional landmarks.",
+    "minutes": 2,
+    "source": "geosint-long-way-saudi-writeup.md"
+  },
+  {
+    "slug": "geosint-writeup",
+    "title": "GeoSINT — We Have",
+    "category": "OSINT",
+    "summary": "Identify the precise location shown in wehavegeosint.jpg and submit it to the GeoSINT challenge.",
+    "minutes": 2,
+    "source": "geosint_writeup.md"
+  },
+  {
+    "slug": "oops-writeup",
+    "title": "Oops — CTF Writeup",
+    "category": "Forensics",
+    "summary": "The archive contained a Python project and its .git directory. Someone had deleted a configuration file and an encrypted secret, but both files were still available in earlier commits.…",
+    "minutes": 4,
+    "source": "oops-writeup.md"
+  },
+  {
+    "slug": "picoctf-heap-overflow-ctfaa",
+    "title": "picoCTF — Heap Overflow (ctfaa)",
+    "category": "Binary Exploitation",
+    "summary": "strcpy into i1->name (a malloc(8)) has no bounds check. Heap chunks are allocated sequentially, so a long argv[1] walks straight out of the name chunk and into the i2 struct that sits…",
+    "minutes": 3,
+    "source": "picoCTF-heap-overflow-ctfaa.md"
+  },
+  {
+    "slug": "world-cup-2026-penalties-writeup",
+    "title": "World Cup 2026 Final — Penalty Shootout",
+    "category": "Scripting",
+    "summary": "The service presents a World Cup final that finished 0–0. The winner is decided by a penalty shootout. For every Uzbekistan penalty, the player must choose one of three directions:",
+    "minutes": 3,
+    "source": "world-cup-2026-penalties-writeup.md"
+  },
+  {
+    "slug": "world-cup-2026-penalty-shootout",
+    "title": "World Cup 2026 Penalty Shootout — Concise Solution",
+    "category": "Scripting",
+    "summary": "Uzbekistan reaches the 2026 World Cup final. The match is tied and the user controls Uzbekistan's penalty directions: LEFT, CENTER, or RIGHT. Brazil (and, on a later connection,…",
+    "minutes": 3,
+    "source": "world_cup_2026_penalty_shootout.md"
+  }
+]

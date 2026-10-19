@@ -1,0 +1,186 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEADFACE CTF — Reptilians / Lizard People — arwah</title><meta name="description" content="The password and decoded flag both match the MD5 values embedded in the executable. This solution uses static analysis and a reconstruction of the decoder. The Windows executable was not…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Reverse Engineering · 6 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#1-result">1. Result</a></li><li><a href="#2-challenge-idea">2. Challenge idea</a></li><li><a href="#3-identify-the-executable">3. Identify the executable</a></li><li><a href="#4-recover-the-password">4. Recover the password</a></li><li><a href="#5-understand-the-hardware-breakpoint-trap">5. Understand the hardware-breakpoint trap</a></li><li><a href="#6-reconstruct-the-flag-decoder">6. Reconstruct the flag decoder</a></li><li><a href="#7-reproducible-solver">7. Reproducible solver</a></li><li><a href="#8-evidence-and-lessons">8. Evidence and lessons</a></li></ul></details><article class="prose"><h1 id="deadface-ctf-reptilians-lizard-people">DEADFACE CTF — Reptilians / Lizard People</h1>
+<p><strong>Category:</strong> Reverse engineering<br />
+<strong>Artifact:</strong> <code>re04-win-x64.exe</code><br />
+<strong>Analyst:</strong> bratxer<br />
+<strong>Analysis date:</strong> 2026-10-18</p>
+<h2 id="1-result">1. Result</h2>
+<p>The password is:</p>
+<pre><code class="language-text">letmein
+</code></pre>
+<p>The flag is:</p>
+<pre><code class="language-text">deadface{Liz4rds_L0ve_Krampuffs_for_some_odd_reason...}
+</code></pre>
+<p>Their favorite cereal is <strong>Krampuffs</strong>.</p>
+<p>The password and decoded flag both match the MD5 values embedded in the executable. This solution uses static analysis and a reconstruction of the decoder. The Windows executable was not run, and no challenge-platform submission was performed during this analysis.</p>
+<h2 id="2-challenge-idea">2. Challenge idea</h2>
+<p>The challenge asks us to reverse engineer a Lytton Labs device used to communicate with the Reptilians. We need to recover its password and identify any additional tricks before learning their favorite spooky cereal.</p>
+<p>There are two linked obstacles: an MD5 password check and a hardware-breakpoint trap. The trap sets a value needed for decryption, but also redirects execution away from the decoder. Bypassing the trap entirely therefore does not solve the challenge.</p>
+<h2 id="3-identify-the-executable">3. Identify the executable</h2>
+<pre><code class="language-bash">file /home/arwah/Downloads/re04-win-x64.exe
+sha256sum /home/arwah/Downloads/re04-win-x64.exe
+strings -a -t x /home/arwah/Downloads/re04-win-x64.exe | rg -i 'password|deadface|cereal|lizard'
+</code></pre>
+<ul>
+<li><code>file</code> identifies the executable format and architecture.</li>
+<li><code>sha256sum</code> records the exact artifact identity.</li>
+<li><code>strings -a -t x</code> extracts printable strings and displays their hexadecimal file offsets.</li>
+<li><code>rg -i</code> filters those strings without case sensitivity.</li>
+</ul>
+<p>The file is a 64-bit Windows PE console executable, 148,992 bytes long, with six sections.</p>
+<pre><code class="language-text">SHA-256:
+e92ec049af8451b6e293c388c8ef504b3a8fa0598bb078f1a678904332ae6a7b
+</code></pre>
+<p>The prompt <code>What is the password: </code> appears at file offset <code>0x17790</code>, corresponding to virtual address <code>0x140018d90</code>. Ghidra's cross-reference to this string leads to <code>0x14000139b</code>, inside the main challenge function beginning at <code>0x140001120</code>.</p>
+<p>File offsets locate bytes in the EXE on disk. Virtual addresses describe where those bytes are mapped in the program image; they are not interchangeable.</p>
+<h2 id="4-recover-the-password">4. Recover the password</h2>
+<p>The main function reads input into a 128-byte buffer, removes the line terminator, and hashes the resulting password. The hash implementation uses the familiar MD5 initial state:</p>
+<pre><code class="language-text">67452301 efcdab89 98badcfe 10325476
+</code></pre>
+<p>After hashing, it compares the 16-byte digest as two 64-bit integers. In simplified pseudocode:</p>
+<pre><code class="language-c">if (digest_low  == 0x0ce4bbf5097d100d &amp;&amp;
+    digest_high == 0xb7e9e9715cded3ad) {
+    decode_flag(password);
+} else {
+    failure();
+}
+</code></pre>
+<p>The second constant appears as <code>-0x4816168ea3211c53</code> in the decompiler's signed representation. Its unsigned 64-bit representation is <code>0xb7e9e9715cded3ad</code>.</p>
+<p>Because x86-64 stores these integers in little-endian byte order, the actual MD5 digest is:</p>
+<pre><code class="language-text">0d107d09f5bbe40cade3de5c71e9e9b7
+</code></pre>
+<p>The candidate <code>letmein</code> matches it exactly:</p>
+<pre><code class="language-bash">printf letmein | md5sum
+</code></pre>
+<p>Expected output:</p>
+<pre><code class="language-text">0d107d09f5bbe40cade3de5c71e9e9b7  -
+</code></pre>
+<p><code>printf</code> avoids adding a newline, so this hashes the same password bytes that the program checks. A large password-cracking run was unnecessary.</p>
+<h2 id="5-understand-the-hardware-breakpoint-trap">5. Understand the hardware-breakpoint trap</h2>
+<p>Before asking for the password, the main function registers a vectored exception handler and starts a helper thread. A vectored exception handler is a callback Windows can invoke when a process encounters an exception.</p>
+<p>Important locations:</p>
+<table>
+<thead>
+<tr>
+<th>Address</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x140001120</code></td>
+<td>Main challenge function and password check</td>
+</tr>
+<tr>
+<td><code>0x140001070</code></td>
+<td>Helper thread that installs the breakpoint</td>
+</tr>
+<tr>
+<td><code>0x140001000</code></td>
+<td>Vectored exception handler</td>
+</tr>
+<tr>
+<td><code>0x140001100</code></td>
+<td>Failure-message function</td>
+</tr>
+<tr>
+<td><code>0x140001ad0</code></td>
+<td>Flag decoder and plaintext hash check</td>
+</tr>
+<tr>
+<td><code>0x140024aa8</code></td>
+<td>Global containing the decoder address</td>
+</tr>
+<tr>
+<td><code>0x140024ab0</code></td>
+<td>Global salt used by the decoder</td>
+</tr>
+</tbody>
+</table>
+<p>The helper suspends the main thread and modifies its debug-register context:</p>
+<pre><code class="language-c">context.Dr0 = 0x140001ad0;
+context.Dr7 = 1;
+</code></pre>
+<p><code>DR0</code> holds a hardware-breakpoint address. Setting <code>DR7</code> to <code>1</code> enables the first breakpoint locally, with an execution-breakpoint configuration. The helper then resumes the main thread.</p>
+<p>When a correct password causes execution to reach the decoder, the breakpoint can raise <code>EXCEPTION_SINGLE_STEP</code> (<code>0x80000004</code>). The handler checks that exception code, the first breakpoint status bit in <code>DR6</code>, and the saved instruction pointer.</p>
+<p>When those conditions match, it performs these critical operations:</p>
+<pre><code class="language-c">salt = 0xd1cefa11badc0de5;
+context.Rip = 0x140001100;  // Redirect to failure()
+context.Dr6 = 0;
+return EXCEPTION_CONTINUE_EXECUTION;
+</code></pre>
+<p><code>RIP</code> is the instruction pointer: changing its saved value changes where execution resumes.</p>
+<p>This explains the trick. The handler supplies the required salt, then sends execution to the failure function. If we simply disable the breakpoint before it triggers, the salt remains zero and the decoder produces incorrect bytes. The static solution preserves the handler's salt while reconstructing the decoder independently of that redirection.</p>
+<h2 id="6-reconstruct-the-flag-decoder">6. Reconstruct the flag decoder</h2>
+<p>The function at <code>0x140001ad0</code> hashes the password again. It initializes a 64-bit state using the first eight digest bytes interpreted in little-endian order:</p>
+<pre><code class="language-text">state = 0x0ce4bbf5097d100d XOR 0xd1cefa11badc0de5
+</code></pre>
+<p>The executable also supplies a fallback state of <code>0x9e3779b97f4a7c15</code> if that XOR result is zero. That branch is not needed for this password and salt.</p>
+<p>The ciphertext is 55 bytes long and begins at virtual address <code>0x1400185a0</code>. The PE section mapping gives its file offset:</p>
+<pre><code class="language-text">.rdata virtual address: 0x140018000
+.rdata file offset:     0x16a00
+ciphertext file offset: 0x16a00 + (0x1400185a0 - 0x140018000)
+                      = 0x16fa0
+</code></pre>
+<p>For each ciphertext byte, the decoder updates its state using a xorshift generator:</p>
+<pre><code class="language-text">state ^= state &lt;&lt; 13
+state ^= state &gt;&gt; 7
+state ^= state &lt;&lt; 17
+plaintext[i] = ciphertext[i] XOR (state &amp; 0xff)
+</code></pre>
+<p>The left-shift operations must wrap to 64 bits. JavaScript BigInt does not overflow automatically, so the solver explicitly truncates them.</p>
+<p>The final left shift does not change the low eight bits, which explains why the optimized decompilation sometimes uses the intermediate value for the XOR byte.</p>
+<p>After decryption, the program hashes all 55 plaintext bytes and checks for:</p>
+<pre><code class="language-text">5d02e679a7bfae73f997e7d4ddfa8c12
+</code></pre>
+<p>Our decoded flag matches that embedded digest exactly. Decoding with a zero salt instead produces invalid text and a different digest, confirming why the handler's state change matters.</p>
+<h2 id="7-reproducible-solver">7. Reproducible solver</h2>
+<p>Save the following as <code>re04-solve.cjs</code>. It reads the original executable, checks its SHA-256, verifies the password, decodes the flag, and verifies the plaintext hash. It does not execute or modify the EXE.</p>
+<pre><code class="language-javascript">const fs = require('node:fs');
+const crypto = require('node:crypto');
+const assert = require('node:assert/strict');
+
+const path = process.argv[2] || '/home/arwah/Downloads/re04-win-x64.exe';
+const binary = fs.readFileSync(path);
+const md5 = data =&gt; crypto.createHash('md5').update(data).digest('hex');
+
+assert.equal(
+  crypto.createHash('sha256').update(binary).digest('hex'),
+  'e92ec049af8451b6e293c388c8ef504b3a8fa0598bb078f1a678904332ae6a7b'
+);
+
+const password = 'letmein';
+assert.equal(md5(password), '0d107d09f5bbe40cade3de5c71e9e9b7');
+
+let state = 0x0ce4bbf5097d100dn ^ 0xd1cefa11badc0de5n;
+const output = Buffer.alloc(55);
+
+for (let i = 0; i &lt; output.length; i++) {
+  state = BigInt.asUintN(64, state ^ (state &lt;&lt; 13n));
+  state ^= state &gt;&gt; 7n;
+  state = BigInt.asUintN(64, state ^ (state &lt;&lt; 17n));
+  output[i] = binary[0x16fa0 + i] ^ Number(state &amp; 255n);
+}
+
+assert.equal(md5(output), '5d02e679a7bfae73f997e7d4ddfa8c12');
+console.log('Password:', password);
+console.log('Flag:', output.toString('ascii'));
+</code></pre>
+<p>The solver created during analysis is available at <code>/home/arwah/Downloads/re04-solve.cjs</code>:</p>
+<pre><code class="language-bash">node /home/arwah/Downloads/re04-solve.cjs /home/arwah/Downloads/re04-win-x64.exe
+</code></pre>
+<p>Verified output:</p>
+<pre><code class="language-text">Password: letmein
+Flag: deadface{Liz4rds_L0ve_Krampuffs_for_some_odd_reason...}
+Both embedded MD5 checks passed. Original EXE was not executed.
+</code></pre>
+<h2 id="8-evidence-and-lessons">8. Evidence and lessons</h2>
+<p>Ghidra 12.1.4, accessed through REA, supplied the main-function and decoder pseudocode. <code>objdump</code> independently exposed the exception handler's instructions, including the salt assignment and saved-RIP replacement. Node.js reconstructed the decoder and checked both hashes.</p>
+<p>Key retained analysis identifiers from the analysis session:</p>
+<ul>
+<li>Main function: <code>ev_bf81cb21d1fbbdc634acaecaa92e48d00383ebac282078ae421b6adaa1bb61b1</code></li>
+<li>Decoder: <code>ev_307e9a5866660360cd33977726d1d9ace71e66b51c7f19b06cf656c707c8467a</code></li>
+<li>Breakpoint helper: <code>ev_2287d02e0ae882098e0e739b12f8b5474ee6d3b2199c8291752d8c7ee2a4a068</code></li>
+</ul>
+<p>These identifiers describe session observations; the self-contained reproduction is the original artifact plus the solver above.</p>
+<p>The main lesson is to follow both control flow and data changes. An exception handler can block the success path while also providing information that path needs. Removing the diversion without understanding the salt would leave the puzzle unsolved.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

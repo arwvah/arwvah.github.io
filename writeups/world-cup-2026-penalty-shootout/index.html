@@ -1,0 +1,102 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>World Cup 2026 Penalty Shootout — Concise Solution — arwah</title><meta name="description" content="Uzbekistan reaches the 2026 World Cup final. The match is tied and the user controls Uzbekistan&#x27;s penalty directions: LEFT, CENTER, or RIGHT. Brazil (and, on a later connection,…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Scripting · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#challenge">Challenge</a></li><li><a href="#observation">Observation</a></li><li><a href="#exploit-strategy">Exploit strategy</a></li><li><a href="#solver">Solver</a></li><li><a href="#result">Result</a></li><li><a href="#flag">Flag</a></li></ul></details><article class="prose"><h1 id="world-cup-2026-penalty-shootout">World Cup 2026 Penalty Shootout</h1>
+<p><strong>Category:</strong> Misc / Scripting<br />
+<strong>Service:</strong> <code>nc task.ctf.uz 13001</code></p>
+<h2 id="challenge">Challenge</h2>
+<p>Uzbekistan reaches the 2026 World Cup final. The match is tied and the user
+controls Uzbekistan's penalty directions: <code>LEFT</code>, <code>CENTER</code>, or <code>RIGHT</code>.
+Brazil (and, on a later connection, Argentina) automatically takes its shots.
+The goal is to win the shootout.</p>
+<h2 id="observation">Observation</h2>
+<p>Choosing the same direction repeatedly eventually produces a miss, for
+example:</p>
+<pre><code class="language-text">Abdukodir Khusanov shoots LEFT.
+Alisson Becker jumps LEFT.
+[-] MISSED
+</code></pre>
+<p>After choosing <code>y</code> to restart, the goalkeeper repeats exactly the same jump
+sequence from penalty 1. The restart resets the score, but it does not reset
+the sequence used for the goalkeeper's decisions.</p>
+<p>This makes the service an oracle. A failed attempt reveals the goalkeeper's
+direction for each penalty reached. On the next attempt, choose any other
+direction for the known positions. If a new position is unknown, submit a
+trial direction, record its result, and restart only if it is saved.</p>
+<h2 id="exploit-strategy">Exploit strategy</h2>
+<ol>
+<li>Start with <code>LEFT</code> for unknown penalties.</li>
+<li>Parse the line <code>&lt;goalkeeper&gt; jumps &lt;DIRECTION&gt;.</code></li>
+<li>Store a safe shot for that penalty:
+<ul>
+<li>if the keeper jumps <code>LEFT</code>, use <code>CENTER</code>;</li>
+<li>otherwise use <code>LEFT</code>.</li>
+</ul>
+</li>
+<li>When Uzbekistan misses, answer <code>y</code> and replay every stored safe shot.</li>
+<li>Repeat until all required penalties are known.</li>
+</ol>
+<p>The solver intentionally uses only <code>LEFT</code> and <code>CENTER</code>; it only needs one
+direction that differs from the keeper's choice.</p>
+<h2 id="solver">Solver</h2>
+<p>The following Python program speaks directly to the TCP service. It handles
+TCP data in a buffer because a goalkeeper line may be split between network
+reads.</p>
+<pre><code class="language-python">import re
+import socket
+
+HOST, PORT = &quot;task.ctf.uz&quot;, 13001
+PROMPT = b&quot;Choose your shot [LEFT, CENTER, RIGHT]: &quot;
+RESTART = b&quot;try again [y/n]: &quot;
+
+def safe_shot(keeper_direction):
+    return &quot;CENTER&quot; if keeper_direction == &quot;LEFT&quot; else &quot;LEFT&quot;
+
+with socket.create_connection((HOST, PORT), timeout=15) as sock:
+    buf, learned = b&quot;&quot;, []
+    round_no, attempt = 0, 1
+
+    while True:
+        while PROMPT not in buf and RESTART not in buf:
+            block = sock.recv(65536)
+            if not block:
+                raise SystemExit(&quot;server closed&quot;)
+            buf += block
+
+        prompt_at, restart_at = buf.find(PROMPT), buf.find(RESTART)
+        is_prompt = prompt_at &gt;= 0 and (restart_at &lt; 0 or prompt_at &lt; restart_at)
+        marker = PROMPT if is_prompt else RESTART
+        marker_at = prompt_at if is_prompt else restart_at
+        event, buf = buf[:marker_at], buf[marker_at + len(marker):]
+
+        jumps = re.findall(rb&quot;jumps (LEFT|CENTER|RIGHT)\\.&quot;, event)
+        if jumps and round_no:
+            shot = safe_shot(jumps[-1].decode())
+            if len(learned) &lt; round_no:
+                learned.append(shot)
+            else:
+                learned[round_no - 1] = shot
+
+        flag = re.search(rb&quot;[A-Za-z0-9_]+\\{[^\\r\\n}]+\\}&quot;, event)
+        if flag:
+            print(flag.group().decode())
+            break
+
+        if is_prompt:
+            round_no += 1
+            shot = learned[round_no - 1] if round_no &lt;= len(learned) else &quot;LEFT&quot;
+            sock.sendall((shot + &quot;\\n&quot;).encode())
+        else:
+            attempt += 1
+            round_no = 0
+            sock.sendall(b&quot;y\\n&quot;)
+</code></pre>
+<h2 id="result">Result</h2>
+<p>The final replay reached penalty 100 without an Uzbekistan miss. Emiliano
+Martinez jumped left while Uzbekistan shot center, then Lionel Messi missed.</p>
+<pre><code class="language-text">Score after penalty 100:
+Uzbekistan 100 - 99 Argentina
+
+UZBEKISTAN WINS THE WORLD CUP 2026!
+</code></pre>
+<h2 id="flag">Flag</h2>
+<pre><code class="language-text">CTF.UZ{W3_4r3_7h3_Ch4mp10n5_my_fr13nd!}
+</code></pre>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

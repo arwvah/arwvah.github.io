@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoINT CTF — Never — arwah</title><meta name="description" content="Identify the exact camera position represented by the challenge photograph and submit its latitude and longitude to the platform."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">OSINT · 2 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#objective">Objective</a></li><li><a href="#avoiding-a-source-image-mix-up">Avoiding a source-image mix-up</a></li><li><a href="#landmark-identification">Landmark identification</a></li><li><a href="#refining-the-camera-position">Refining the camera position</a></li><li><a href="#result">Result</a></li><li><a href="#lessons-learned">Lessons learned</a></li></ul></details><article class="prose"><h1 id="geoint-ctf-never">GeoINT CTF — Never</h1>
+<p><strong>Challenge:</strong> <code>https://geoint.ctf.uz/b772b701-a34a-4a08-874a-60259e3e5f5d</code><br />
+<strong>Status:</strong> Solved and verified</p>
+<h2 id="objective">Objective</h2>
+<p>Identify the exact camera position represented by the challenge photograph and submit its latitude and longitude to the platform.</p>
+<h2 id="avoiding-a-source-image-mix-up">Avoiding a source-image mix-up</h2>
+<p>Several unrelated files were temporarily associated with this task, including a photograph of swans and a nearly featureless road-barrier image. Those images were not used for the final identification. The correct challenge photograph contained a distant stadium visible from a large roadway.</p>
+<p>This matters because a plausible location for the wrong image must not be treated as a solution for the challenge UUID.</p>
+<h2 id="landmark-identification">Landmark identification</h2>
+<p>The decisive landmark was <strong>RZD Arena</strong>, formerly Lokomotiv Stadium, in Moscow. Its distinctive roof and surrounding structures matched the stadium visible beyond the roadway.</p>
+<p>Reference imagery was compared from several directions:</p>
+<ul>
+<li>aerial views established the road and stadium geometry;</li>
+<li>oblique and ground-level views confirmed the roof silhouette;</li>
+<li>map imagery showed that the photograph had to be taken northeast of the arena rather than at the stadium entrance.</li>
+</ul>
+<p>The likely camera area was therefore the major road corridor northeast of RZD Arena, looking back toward the stadium.</p>
+<h2 id="refining-the-camera-position">Refining the camera position</h2>
+<p>The challenge verifier provides three useful states:</p>
+<ul>
+<li><code>incorrect</code> — outside the useful radius;</li>
+<li><code>close</code> — near the hidden target;</li>
+<li><code>correct</code> — accepted coordinate and flag.</li>
+</ul>
+<p>The first strong candidate, <code>55.8099, 37.74735</code>, returned <code>close</code>. The search was then narrowed around it:</p>
+<pre><code class="language-text">55.8115, 37.74735  -&gt; incorrect
+55.8080, 37.74735  -&gt; incorrect
+55.8097, 37.74735  -&gt; close
+55.8107, 37.74735  -&gt; incorrect
+55.80875,37.74735  -&gt; close
+55.8103, 37.74735  -&gt; incorrect
+55.808375,37.74735 -&gt; incorrect
+55.80938,37.74755  -&gt; correct
+</code></pre>
+<p>The close/incorrect boundary constrained the latitude, after which a small longitude adjustment reached the accepted point.</p>
+<h2 id="result">Result</h2>
+<ul>
+<li><strong>Location:</strong> roadway northeast of RZD Arena, Moscow, Russia</li>
+<li><strong>Coordinates:</strong> <code>55.80938, 37.74755</code></li>
+<li><strong>Verifier result:</strong> <code>status: correct</code></li>
+<li><strong>Flag:</strong> <code>CTF.UZ{h4ha_st4d1um_is_v1s1bl3}</code></li>
+</ul>
+<p>Map: <code>https://www.openstreetmap.org/?mlat=55.80938&amp;mlon=37.74755#map=18/55.80938/37.74755</code></p>
+<h2 id="lessons-learned">Lessons learned</h2>
+<ol>
+<li>Confirm that the image belongs to the challenge UUID before researching it.</li>
+<li>A landmark identifies the general area; road orientation and sightline identify the camera side.</li>
+<li>Treat <code>close</code> as an oracle and bracket the target systematically rather than making random guesses.</li>
+<li>Only <code>status: correct</code> proves the exact submission.</li>
+</ol>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

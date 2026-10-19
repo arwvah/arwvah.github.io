@@ -1,0 +1,60 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoSINT CTF — Long Way — arwah</title><meta name="description" content="Identify the exact road position from a desert photograph containing power lines and almost no conventional landmarks."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">OSINT · 2 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#objective">Objective</a></li><li><a href="#step-1-extracting-metadata">Step 1 — Extracting metadata</a></li><li><a href="#step-2-interpreting-on-the-way">Step 2 — Interpreting “on the way”</a></li><li><a href="#step-3-matching-the-utility-corridor">Step 3 — Matching the utility corridor</a></li><li><a href="#verification">Verification</a></li><li><a href="#result">Result</a></li><li><a href="#references">References</a></li><li><a href="#lessons-learned">Lessons learned</a></li></ul></details><article class="prose"><h1 id="geosint-ctf-long-way">GeoSINT CTF — Long Way</h1>
+<p><strong>Challenge:</strong> <code>https://geosint.ctf.uz/2807ffe8-e563-4972-9c94-087e9adf67ca</code><br />
+<strong>Hint:</strong> “On the way to Black Hat MEA”<br />
+<strong>Status:</strong> Solved and verified</p>
+<h2 id="objective">Objective</h2>
+<p>Identify the exact road position from a desert photograph containing power lines and almost no conventional landmarks.</p>
+<h2 id="step-1-extracting-metadata">Step 1 — Extracting metadata</h2>
+<p>Unlike many GeoINT images, the original file retained useful EXIF data even though GPS was absent:</p>
+<pre><code class="language-text">Camera:           iPhone 15
+DateTimeOriginal: 2025:12:03 10:47:37
+Time zone:        +03:00
+iOS:              18.3.2
+GPS:              absent
+</code></pre>
+<p>The timestamp was crucial. Black Hat MEA 2025 was held from <strong>2–4 December 2025</strong> at the Riyadh Exhibition &amp; Convention Center in Malham, Saudi Arabia. The photograph was therefore taken during the event window and in the local Saudi time zone.</p>
+<h2 id="step-2-interpreting-on-the-way">Step 2 — Interpreting “on the way”</h2>
+<p>The hint described a journey rather than the venue itself. Event transport information indicated shuttle departures from the <strong>SAB Metro station</strong> area toward the Malham venue. A route between those points runs north from Riyadh along the King Fahd / Al Qassim highway corridor.</p>
+<p>This matched the photograph:</p>
+<ul>
+<li>arid, open terrain;</li>
+<li>a divided high-speed road;</li>
+<li>a yellow edge line viewed through a vehicle window;</li>
+<li>repeated guyed utility poles and multiple parallel distribution lines;</li>
+<li>no dense urban development.</li>
+</ul>
+<h2 id="step-3-matching-the-utility-corridor">Step 3 — Matching the utility corridor</h2>
+<p>The road route alone was too long to guess safely. OpenStreetMap geometry was used to compare the route with nearby power infrastructure. The useful discriminator was a tight cluster of <strong>three minor power lines</strong> crossing or running immediately beside the highway.</p>
+<p>Projecting that cluster onto the driving route isolated a point near:</p>
+<pre><code class="language-text">25.086832, 46.481893
+</code></pre>
+<p>This is on <strong>King Fahd Road / Highway 65</strong> in Huraymila Governorate, Riyadh Province, north of Riyadh and south of the Malham event venue.</p>
+<h2 id="verification">Verification</h2>
+<p>The narrowed candidate was submitted to the task-specific verifier and was accepted:</p>
+<pre><code class="language-json">{
+  &quot;status&quot;: &quot;correct&quot;,
+  &quot;flag&quot;: &quot;CTF.UZ{y3s_it_w4s_a_v3ry_l0ng_w4y}&quot;
+}
+</code></pre>
+<h2 id="result">Result</h2>
+<ul>
+<li><strong>Location:</strong> King Fahd Road / Highway 65, Huraymila Governorate, Riyadh Province, Saudi Arabia</li>
+<li><strong>Coordinates:</strong> <code>25.086832, 46.481893</code></li>
+<li><strong>Verifier result:</strong> <code>status: correct</code></li>
+<li><strong>Flag:</strong> <code>CTF.UZ{y3s_it_w4s_a_v3ry_l0ng_w4y}</code></li>
+</ul>
+<p>Map: <code>https://www.openstreetmap.org/?mlat=25.086832&amp;mlon=46.481893#map=17/25.086832/46.481893</code></p>
+<h2 id="references">References</h2>
+<ul>
+<li>Black Hat upcoming-events page: <code>https://www.blackhat.com/upcoming.html?meevents=</code></li>
+<li>Black Hat MEA FAQ: <code>https://blackhatmea.com/faq</code></li>
+<li>Event transport document: <code>https://www.linkedin.com/posts/blackhatmea_how-to-get-to-black-hat-mea-2025pdf-activity-7401500550854410241-2NNM</code></li>
+</ul>
+<h2 id="lessons-learned">Lessons learned</h2>
+<ol>
+<li>Always inspect EXIF before beginning visual research; a timestamp can be as valuable as GPS.</li>
+<li>Interpret travel hints as a route problem, not merely a destination clue.</li>
+<li>When the scene lacks landmarks, combine road geometry with secondary infrastructure such as power-line crossings.</li>
+<li>Submit only after independent clues converge, then preserve the verifier response as proof.</li>
+</ol>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

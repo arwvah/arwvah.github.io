@@ -1,0 +1,80 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Uninvited Guest — Writeup — arwah</title><meta name="description" content="The companion pcap to Who Goes There? captures the initial access: LLMNR poisoning of the file-server name, the NTLMv2 credential leak it triggers, the attacker relaying into the real…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Forensics · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#protocol-overview">Protocol overview</a></li><li><a href="#flag-1-the-poisoned-answer-10-77-10-66">Flag 1 — the poisoned answer: 10.77.10.66</a></li><li><a href="#flag-2-the-leaked-username-nkessler">Flag 2 — the leaked username: nkessler</a></li><li><a href="#flag-3-first-pdf-read-annualreport-pdf">Flag 3 — first PDF read: annualreport.pdf</a></li><li><a href="#flag-4-exfiltration-destination-167-172-132-2244815">Flag 4 — exfiltration destination: 167.172.132.2244815</a></li><li><a href="#attack-chain-combined-with-memory-evidence">Attack chain (combined with memory evidence)</a></li></ul></details><article class="prose"><h1 id="uninvited-guest-writeup">Uninvited Guest — Writeup</h1>
+<p><strong>Category:</strong> Network Forensics (tshark)
+<strong>Artifact:</strong> <code>demonne.pcap</code> (53,326 packets, 2026-09-28 01:05–01:24)
+<strong>Flags:</strong>
+<code>deadface{10.77.10.66}</code> · <code>deadface{nkessler}</code> · <code>deadface{annual_report.pdf}</code> ·
+<code>deadface{167.172.132.224_4815}</code></p>
+<h2 id="summary">Summary</h2>
+<p>The companion pcap to <em>Who Goes There?</em> captures the initial access: LLMNR
+poisoning of the file-server name, the NTLMv2 credential leak it triggers, the
+attacker relaying into the real file server, enumerating the executive share,
+and finally zipping the loot out to a public IP on a nonstandard port.</p>
+<h2 id="protocol-overview">Protocol overview</h2>
+<pre><code class="language-bash">tshark -r demonne.pcap -q -z io,phs
+#   ssh 47634 frames, smb2 140, llmnr 160, mdns 280, nbns 2, dns 18, arp 1556
+</code></pre>
+<h2 id="flag-1-the-poisoned-answer-10-77-10-66">Flag 1 — the poisoned answer: <code>10.77.10.66</code></h2>
+<p>Filter the name-resolution chatter:</p>
+<pre><code class="language-bash">tshark -r demonne.pcap -Y &quot;llmnr || nbns || mdns&quot; \
+  -T fields -e frame.number -e ip.src -e dns.qry.name -e dns.a
+</code></pre>
+<p>The workstation <code>10.77.10.20</code> (Nathan's box, MAC <code>52:54:00:77:20:01</code>) broadcasts
+LLMNR queries for the file server <code>dmf-field-01</code>, and <code>10.77.10.66</code> (MAC
+<code>52:54:00:77:66:01</code> — the rogue Kali device) answers every one of them in
+~1–2 ms with the poisoned response:</p>
+<pre><code>1459  10.77.10.20  query  dmf-field-01
+1463  (kali)       resp   dmf-field-01  A 10.77.10.66   &lt;-- claiming to BE the file server
+1468  10.77.10.66  resp   dmf-field-01  A 10.77.10.66   &lt;-- ...and again, and again
+</code></pre>
+<p>Classic LLMNR poisoning — the &quot;corporate&quot; IPv4 supplying the suspicious answer:</p>
+<pre><code>deadface{10.77.10.66}
+</code></pre>
+<h2 id="flag-2-the-leaked-username-nkessler">Flag 2 — the leaked username: <code>nkessler</code></h2>
+<p>The poisoned answer prompts an SMB authentication attempt straight into the
+attacker's hands:</p>
+<pre><code class="language-bash">tshark -r demonne.pcap -Y &quot;ntlmssp.auth.username&quot; \
+  -T fields -e frame.number -e eth.src -e eth.dst -e ntlmssp.auth.username -e ntlmssp.auth.domain
+</code></pre>
+<pre><code>2326  52:54:00:77:20:01 -&gt; 52:54:00:77:66:01  (TCP 445)  nkessler  dmf-field-01
+</code></pre>
+<p>Nathan's workstation sends an NTLMv2 AUTH for <strong>nkessler</strong> to the Kali box —
+domain field helpfully set to the poisoned name <code>dmf-field-01</code>.</p>
+<pre><code>deadface{nkessler}
+</code></pre>
+<h2 id="flag-3-first-pdf-read-annualreport-pdf">Flag 3 — first PDF read: <code>annual_report.pdf</code></h2>
+<p>The attacker relays to the real file server (<code>10.77.10.30</code>, DMF-FILE-01) and
+enumerates the executive share; frame 6899's directory listing shows the loot
+set, then files are read in sequence (SMB2 cmd 5 = Create, 16 = Query, 8 =
+Read):</p>
+<pre><code>7405  01:07:31  Create  annual_report.pdf              &lt;-- first PDF read
+9088  01:07:47  Create  board_transition_timeline.pdf
+9740  01:07:53  Create  succession_vote_draft.pdf
+</code></pre>
+<pre><code>deadface{annual_report.pdf}
+</code></pre>
+<h2 id="flag-4-exfiltration-destination-167-172-132-2244815">Flag 4 — exfiltration destination: <code>167.172.132.224_4815</code></h2>
+<p>Sum the outbound TCP from the Kali box, excluding LAN/SSH noise:</p>
+<pre><code class="language-bash">tshark -r demonne.pcap -Y &quot;ip.src==10.77.10.66 &amp;&amp; tcp&quot; \
+  -T fields -e ip.dst -e tcp.dstport -e tcp.len \
+  | awk '$1!~/^10\./ {s[$1&quot;:&quot;$2]+=$3} END {for (k in s) print s[k], k}' | sort -rn
+#   710070  167.172.132.224:4815      &lt;-- ~710 KB outbound, public IP
+</code></pre>
+<p>Confirm it really is the archive — the first data packet carries the ZIP magic:</p>
+<pre><code class="language-bash">tshark -r demonne.pcap -Y &quot;ip.dst==167.172.132.224 &amp;&amp; tcp.len&gt;0&quot; \
+  -T fields -e tcp.payload | head -1
+#   504b0304  ...  (PK\x03\x04)
+</code></pre>
+<pre><code>deadface{167.172.132.224_4815}
+</code></pre>
+<h2 id="attack-chain-combined-with-memory-evidence">Attack chain (combined with memory evidence)</h2>
+<pre><code>Kali 10.77.10.66  --LLMNR poison--&gt;  DMF-WS11-042 (10.77.10.20)
+        &lt;-- NTLMv2 auth for nkessler --
+Kali  --relay--&gt;  DMF-FILE-01 (10.77.10.30) :445
+        reads /executive: annual_report.pdf, board_transition_timeline.pdf,
+        succession_vote_draft.pdf, executive_risk_register.xlsx,
+        candidate_background_notes.docx
+Kali  --ZIP exfil--&gt;  167.172.132.224:4815 (710 KB)
+</code></pre>
+<p>The stolen document later surfaced in Ghost Town, confirming the breach —
+exactly the story the two artifacts tell together.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

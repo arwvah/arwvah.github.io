@@ -1,0 +1,297 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aurora Patient Portal — Deadface CTF Writeup — arwah</title><meta name="description" content="Investigate mobile artifacts, a patient portal, and trial databases to reconstruct an attack chain across six DEADFACE challenges."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Web / Database · 9 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#challenge-1-medications-ipa-forensics">Challenge 1 — Medications (IPA forensics)</a></li><li><a href="#challenge-2-gateway-hidden-diagnostics-page">Challenge 2 — Gateway (hidden diagnostics page)</a></li><li><a href="#interlude-health-spark-portal-45-79-200-170-3000">Interlude — Health Spark portal (45.79.200.170:3000)</a></li><li><a href="#challenge-3-fabricated-patient-mysql-shell">Challenge 3 — Fabricated patient (MySQL shell)</a></li><li><a href="#challenge-4-the-handler-mysql-shell">Challenge 4 — the handler (MySQL shell)</a></li><li><a href="#challenge-5-the-invented-number-mysql-shell">Challenge 5 — the invented number (MySQL shell)</a></li><li><a href="#challenge-6-the-compromised-account-mysql-shell">Challenge 6 — the compromised account (MySQL shell)</a></li><li><a href="#lessons">Lessons</a></li></ul></details><article class="prose"><h1 id="aurora-patient-portal-deadface-ctf-writeup">Aurora Patient Portal — Deadface CTF Writeup</h1>
+<p><strong>Category:</strong> Forensics / Web / Database
+<strong>Flags:</strong></p>
+<ul>
+<li><code>deadface{Candesartan}</code> (medications — other than Ibuprofen)</li>
+<li><code>deadface{gw-westlake-int-03}</code> (gateway name)</li>
+<li><code>deadface{AH-0090001}</code> (fabricated patient MRN)</li>
+<li><code>deadface{REVENANT-7}</code> (shared DEADFACE handler codename)</li>
+<li><code>deadface{VELT-0148}</code> (statistically impossible trial subject)</li>
+<li><code>deadface{kbhatt}</code> (compromised account — simultaneous sessions)</li>
+</ul>
+<h2 id="summary">Summary</h2>
+<p>Four challenges over one attack chain against Aurora Health:</p>
+<ol>
+<li><strong>Medications</strong> — an IPA (iOS app bundle) leaks the current patient's ID via
+image XMP metadata and a base64 <code>Info.plist</code> bootstrap blob. The bundled
+SQLite meds DB then yields the patient's second medication.</li>
+<li><strong>Gateway</strong> — a hidden diagnostics screen in the same binary exposes the
+internal gateway hostname the app phones home to.</li>
+<li><strong>Fabricated patient (MySQL)</strong> — a ttyd-fronted MySQL shell joins
+<code>aurora_ehr</code> and <code>aurora_pharmacy</code> on the shared enterprise <code>patient_id</code> to
+find a patient holding Schedule II prescriptions with zero clinical
+encounters — a narcotics-diversion paper trail.</li>
+<li><strong>Handler (MySQL)</strong> — the same shell intersects <code>handler_ref</code> codenames
+between <code>aurora_audit.users</code> and <code>aurora_ehr.providers</code> to unmask the single
+DEADFACE operative running insiders on both sides of the house.</li>
+<li><strong>Invented endpoint (MySQL)</strong> — a z-score sweep over <code>aurora_trials.results</code>
+finds the one subject whose efficacy value sits &gt;3 SD above the study mean.</li>
+<li><strong>Compromised account (MySQL)</strong> — the audit access_log shows one account
+logging from two different workstations at the very same timestamp, eight
+times: the stolen credentials DEADFACE used to get in.</li>
+</ol>
+<p>Along the way: a Health Spark employer portal at <code>45.79.200.170:3000</code>
+(SQLi leak + JWT role escalation attempt) and a zero-width-character prompt
+injection planted in a user message (bait — disregarded).</p>
+<h2 id="challenge-1-medications-ipa-forensics">Challenge 1 — Medications (IPA forensics)</h2>
+<p>Artifact: <code>AuroraPatientPortal.ipa</code> → unzips to
+<code>Payload/aurora-patient-portal.app</code> containing the Mach-O binary
+(<code>Aurora Health Mobile</code>), <code>aurora_meds.sqlite</code>, <code>aurora_chest_xray.jpg</code>,
+<code>Info.plist</code>, <code>Assets.car</code>.</p>
+<h3 id="step-1-the-meds-database">Step 1 — the meds database</h3>
+<pre><code class="language-bash">python3 - &lt;&lt;'EOF'
+import sqlite3
+con = sqlite3.connect('aurora_meds.sqlite')
+cur = con.cursor()
+cur.execute(&quot;SELECT name, sql FROM sqlite_master WHERE type='table'&quot;)
+# one table: medications(pid, medication_1, medication_1_dosage, medication_1_frequency,
+#                       medication_2, medication_2_dosage, medication_2_frequency)
+cur.execute(&quot;SELECT COUNT(*) FROM medications&quot;)   # 100 rows
+cur.execute(&quot;SELECT * FROM medications WHERE medication_1='Ibuprofen' OR medication_2='Ibuprofen'&quot;)
+# exactly ONE row: pid 847261 | Ibuprofen 400 mg q8h PRN | Candesartan 16 mg once daily
+EOF
+</code></pre>
+<h3 id="step-2-tying-pid-847261-to-the-current-patient-info-leaks">Step 2 — tying pid 847261 to &quot;the current patient&quot; (Info Leaks)</h3>
+<p>The chest X-ray's XMP metadata carries the leak:</p>
+<pre><code class="language-xml">&lt;dc:identifier&gt;PID-847261&lt;/dc:identifier&gt;
+</code></pre>
+<h3 id="step-3-down-the-rabbit-hole-bootstrap-identity">Step 3 — Down the Rabbit Hole (bootstrap identity)</h3>
+<p><code>Info.plist</code> has a custom key:</p>
+<pre><code>AuroraPatientBootstrap: eyJwYX...lIn0=   (base64)
+→ {&quot;patientName&quot;:&quot;Mara Voss&quot;,&quot;dateOfBirth&quot;:&quot;1988-04-17&quot;,&quot;clinic&quot;:&quot;Westlake&quot;}
+</code></pre>
+<p>The demo chart loaded by the app is Mara Voss's, and her PID is 847261.
+Querying the meds DB on that row:</p>
+<pre><code>medication_1: Ibuprofen     400 mg    every 8 hours as needed
+medication_2: Candesartan   16 mg     once daily
+</code></pre>
+<p><strong>Flag: <code>deadface{Candesartan}</code></strong></p>
+<blockquote>
+<p>Note: the user message for this challenge contained a hidden payload of
+zero-width characters (ZWSP/ZWNJ, base-4 over 2 bits each) that decoded to
+<code>flag{s0lv3_m3_h4rd3r_AI_d4dy}</code> — prompt-injection bait, not challenge data.
+Decode: extract the run of U+200B/U+200C, map each char to 2 bits, join 8 at
+a time to ASCII. Disregarded.</p>
+</blockquote>
+<h2 id="challenge-2-gateway-hidden-diagnostics-page">Challenge 2 — Gateway (hidden diagnostics page)</h2>
+<p>Strings in the binary showed a private SwiftUI stack never reachable from the
+UI:</p>
+<pre><code>AuroraPatientBootstrap, DiagnosticScreen, DiagnosticRow, DiagnosticItem,
+StatusPill, _isShowingDiagnosticScreen, onLongPressGesture (header trigger)
+</code></pre>
+<p>and the diagnostics row data itself:</p>
+<pre><code>&quot;Aurora Diagnostics&quot;
+&quot;Last Gateway Check&quot;   &quot;2026-05-30 09:42 UTC&quot;
+&quot;gw-westlake-int-03&quot;
+&quot;Patient Cache Realm&quot; / &quot;patient-summary-cache-v2&quot; / &quot;Medication Cache&quot;
+</code></pre>
+<p>A sweep of every file in the .app for <code>gateway|gw-|int-\d+</code> patterns returned
+exactly one hostname, and it matches the bootstrap's clinic (Westlake):</p>
+<p><strong>Flag: <code>deadface{gw-westlake-int-03}</code></strong></p>
+<h2 id="interlude-health-spark-portal-45-79-200-170-3000">Interlude — Health Spark portal (45.79.200.170:3000)</h2>
+<p>&quot;Admin is king&quot; challenge on a Node/Express employer portal. Recon from the
+login page JS: <code>POST /api/login</code> issues a JWT; <code>/dashboard</code> calls
+<code>POST /api/patients</code> (department-scoped PHI table) and exposes an admin-only
+<code>POST /api/admin/fetch-photo</code> (SSRF-flavored image importer).</p>
+<h3 id="sqli-on-the-login-info-leak">SQLi on the login (info leak)</h3>
+<p><code>username</code> is injectable, but only rows <strong>already matching the WHERE clause</strong>
+come back through the leak response — and the app re-serializes a fixed row:</p>
+<pre><code>a' OR 1=1 --   →
+{&quot;message&quot;:&quot;Login failed. That's weird... check the network traffic!&quot;,
+ &quot;username&quot;:&quot;john.smith&quot;,&quot;name&quot;:&quot;John Smith&quot;,&quot;role&quot;:&quot;user&quot;,
+ &quot;departmentid&quot;:10685,&quot;password&quot;:&quot;Locked_In_And_Ready&quot;,
+ &quot;flag&quot;:&quot;deadface{typical_and_classic}&quot;}     ← decoy flag (earlier challenge)
+</code></pre>
+<p>UNION attempts with fabricated rows (<code>UNION SELECT 'x','y','admin',...</code>) are
+silently dropped — any injected row's values never reach the JSON, and a
+pure-UNION rowset logs in as nothing. Real login with the leaked password
+works: <code>john.smith / Locked_In_And_Ready</code> → HS256 JWT
+<code>{&quot;sub&quot;:&quot;john.smith&quot;,&quot;role&quot;:&quot;user&quot;,&quot;departmentid&quot;:10685,...}</code>.</p>
+<h3 id="escalation-attempts-all-rejected-server-enforces-signature-role">Escalation attempts (all rejected — server enforces signature + role)</h3>
+<ul>
+<li>tampered payload <code>role:&quot;admin&quot;</code> + old signature → 401 Invalid or expired token</li>
+<li><code>alg:none</code> header, empty signature → 401</li>
+<li><code>/api/admin/fetch-photo</code> with user token → 403 <code>Administrator role required</code></li>
+<li>known-secret guesses (rockyou top-N + chain identifiers) vs the HS256 HMAC → no match</li>
+<li><code>/api/patients</code> IDOR to other departments → enforced (only dept 10685 has rows)</li>
+<li>type-juggling JSON, comment variants (<code>#</code>, <code>-- -</code>, <code>/*</code>), parameterized dupes
+of <code>username</code> — all normalize back to the same fixed leak row</li>
+</ul>
+<p>Conclusion: the login SQLi is a <em>disclosure</em> bug (the intended &quot;check the
+network traffic&quot; teach), and the admin gate itself is sound. The Aurora chain
+continued server-side instead.</p>
+<h2 id="challenge-3-fabricated-patient-mysql-shell">Challenge 3 — Fabricated patient (MySQL shell)</h2>
+<p>Endpoint: <code>https://aurora.dctf.io/</code> — a <strong>ttyd</strong> web terminal that drops you
+into a MariaDB monitor as <code>player@aurora-mysql</code> (MySQL 8.0.46).</p>
+<h3 id="driving-ttyd-headlessly">Driving ttyd headlessly</h3>
+<p>ttyd's websocket protocol (useful for scripted queries):</p>
+<ul>
+<li><code>GET /token</code> → <code>{&quot;token&quot;: &quot;&quot;}</code> (no auth required here)</li>
+<li>ws endpoint <code>/ws</code>, subprotocol <code>tty</code></li>
+<li>first frame: <strong>text</strong> <code>{&quot;AuthToken&quot;:&quot;&quot;,&quot;columns&quot;:220,&quot;rows&quot;:60}</code></li>
+<li>input: <strong>binary</strong> frame, 1-byte opcode <code>'0'</code> (0x30) + payload bytes</li>
+<li>output: binary frames with opcodes <code>'0'</code> (stdout), <code>'1'</code>, <code>'2'</code> (prefs)</li>
+</ul>
+<pre><code class="language-python">ws = websocket.create_connection(&quot;wss://aurora.dctf.io/ws&quot;, timeout=25,
+                                 origin=&quot;https://aurora.dctf.io&quot;, subprotocols=[&quot;tty&quot;])
+ws.send(json.dumps({&quot;AuthToken&quot;:&quot;&quot;, &quot;columns&quot;:220, &quot;rows&quot;:60}))
+ws.send_binary(b&quot;0&quot; + b&quot;SHOW DATABASES;\n&quot;)   # '0' prefix = stdin
+</code></pre>
+<p>Sessions spawn per-connection and the server rate-limits reconnects, so the
+reliable pattern is: one long-lived script that opens the socket, then sends
+every query and logs output to a file.</p>
+<h3 id="schema-map">Schema map</h3>
+<pre><code>aurora_ehr      patients, encounters, diagnoses, clinical_notes, providers, insurance_plans
+aurora_pharmacy prescriptions, drugs, dispenses, prescribers, pharmacists
+aurora_audit    users, access_log
+aurora_trials   subjects, studies, sites, results, adverse_events, data_changes
+</code></pre>
+<p>Key columns: <code>aurora_ehr.patients(patient_id PK, mrn UNIQUE, ...)</code>,
+<code>aurora_ehr.encounters(patient_id, ...)</code>,
+<code>aurora_pharmacy.prescriptions(patient_id, drug_id, written_date, ...)</code>,
+<code>aurora_pharmacy.drugs(drug_id, generic_name, brand_name, dea_schedule, ...)</code>.</p>
+<p>Counts: 60 patients, 157 prescriptions, 143 encounters.</p>
+<h3 id="the-query">The query</h3>
+<p>One enterprise <code>patient_id</code> joins every system. A fabricated patient = at
+least one Schedule II prescription <strong>and</strong> zero encounters:</p>
+<pre><code class="language-sql">SELECT p.patient_id, p.mrn, p.first_name, p.last_name
+FROM aurora_ehr.patients p
+JOIN aurora_pharmacy.prescriptions rx ON rx.patient_id = p.patient_id
+JOIN aurora_pharmacy.drugs d          ON d.drug_id     = rx.drug_id
+WHERE d.dea_schedule = 'II'
+  AND NOT EXISTS (SELECT 1 FROM aurora_ehr.encounters e
+                  WHERE e.patient_id = p.patient_id);
+</code></pre>
+<p>Result (3 rows = the same patient across her 3 Schedule II scripts):</p>
+<pre><code>patient_id | mrn        | first_name | last_name
+1060       | AH-0090001 | Dana       | Kessler
+</code></pre>
+<h3 id="corroboration-the-diversion-pattern">Corroboration — the diversion pattern</h3>
+<p>Her full prescription trail (all quantity 180 / 30-day supply / &quot;Take as
+directed&quot;):</p>
+<pre><code>rx_id  drug                dea  written     qty  days  sig
+40157  Hydrocodone/APAP    II   2025-10-19  180   30   Take as directed
+40155  Hydrocodone/APAP    II   2025-11-20  180   30   Take as directed
+40156  Amphetamine Salts   II   2025-12-15  180   30   Take as directed
+</code></pre>
+<p>Monthly Schedule II fills, no encounters anywhere in the EHR — the classic
+paper-trail-leading-nowhere the challenge describes.</p>
+<p><strong>Flag: <code>deadface{AH-0090001}</code></strong></p>
+<h2 id="challenge-4-the-handler-mysql-shell">Challenge 4 — the handler (MySQL shell)</h2>
+<p>The breach was coordinated: an insider clerk (<code>rborden</code>, Health Information
+Clerk) snooped a gubernatorial candidate's chart, and a diversion-flagged
+physician (Marcus Reyes, Pain Management) faked the Veltrexa trial. Both were
+run by one DEADFACE handler, whose codename sits in <code>handler_ref</code> on both
+sides of the house — ~15 distinct codenames per table, so only a set
+intersection can isolate the operative working both.</p>
+<p>Both tables carry the column:</p>
+<pre><code>aurora_audit.users      handler_ref varchar(16)   (user_id, username, full_name, role, department, status, ...)
+aurora_ehr.providers    handler_ref varchar(16)   (provider_id, npi, first_name, last_name, specialty, ...)
+</code></pre>
+<h3 id="the-query-2">The query</h3>
+<pre><code class="language-sql">SELECT u.handler_ref
+FROM (SELECT DISTINCT handler_ref FROM aurora_audit.users
+      WHERE handler_ref IS NOT NULL AND handler_ref &lt;&gt; '') u
+JOIN (SELECT DISTINCT handler_ref FROM aurora_ehr.providers
+      WHERE handler_ref IS NOT NULL AND handler_ref &lt;&gt; '') p
+  ON u.handler_ref = p.handler_ref;
+</code></pre>
+<p>Exactly one codename survives:</p>
+<pre><code>handler_ref
+REVENANT-7
+</code></pre>
+<h3 id="corroboration-the-two-insiders">Corroboration — the two insiders</h3>
+<pre><code class="language-sql">-- audit side
+SELECT username, role, handler_ref FROM aurora_audit.users WHERE handler_ref='REVENANT-7';
++----------+--------------------------+-------------+
+| username | role                     | handler_ref |
+| rborden  | Health Information Clerk | REVENANT-7  |
+
+-- EHR side
+SELECT provider_id, first_name, last_name, specialty, handler_ref
+FROM aurora_ehr.providers WHERE handler_ref='REVENANT-7';
++-------------+------------+-----------+-----------------+-------------+
+| provider_id | first_name | last_name | specialty       | handler_ref |
+| 5           | Marcus     | Reyes     | Pain Management | REVENANT-7  |
+</code></pre>
+<p>The clerk in the audit system and the physician in the EHR — each flagged as a
+material insider in the earlier challenges — both roll up to the same
+operative. Every other codename appears on only one side.</p>
+<p><strong>Flag: <code>deadface{REVENANT-7}</code></strong></p>
+<h2 id="challenge-5-the-invented-number-mysql-shell">Challenge 5 — the invented number (MySQL shell)</h2>
+<p>Second fabrication in study AUR-VLT-3001 (Veltrexa phase III, data locked
+2025-12-01): one subject's <code>primary_efficacy_delta</code> is a statistical
+impossibility — &gt;3 SD above the study-wide mean.</p>
+<p>Schema: <code>aurora_trials.results(subject_id, measure, visit, value, recorded_by, modified_by, ...)</code> joined to <code>subjects(subject_id, subject_code, arm, ...)</code>.
+Two measures exist: <code>primary_efficacy_delta</code> (60 rows) and
+<code>secondary_qol_score</code> (31 rows).</p>
+<h3 id="the-query-3">The query</h3>
+<pre><code class="language-sql">WITH stats AS (
+  SELECT measure, AVG(value) AS mu, STDDEV_SAMP(value) AS sd
+  FROM aurora_trials.results GROUP BY measure)
+SELECT s.subject_code, r.measure, r.value, st.mu, st.sd,
+       (r.value - st.mu)/st.sd AS z
+FROM aurora_trials.results r
+JOIN aurora_trials.subjects s ON s.subject_id = r.subject_id
+JOIN stats st ON st.measure = r.measure
+WHERE st.sd &gt; 0 AND ABS((r.value - st.mu)/st.sd) &gt; 3;
+</code></pre>
+<p>Exactly one row in the whole trials database exceeds |z| &gt; 3:</p>
+<pre><code>subject_code | measure                | value | mu     | sd    | z
+VELT-0148    | primary_efficacy_delta | 22.00 | 2.965  | 2.830 | +6.73
+</code></pre>
+<h3 id="why-it-s-fabricated-not-just-impressive">Why it's fabricated, not just impressive</h3>
+<ul>
+<li>Next-best primary endpoint: 6.00 (VELT-0137 — the <code>mreyes</code> post-lock edit
+from the data_changes challenge), then 5.25. A value of 22.00 is ~3.8× the
+runner-up and 6.7 SD off the mean — not a tail, a different distribution.</li>
+<li>The row's <code>modified_by</code>/<code>modified_at</code> are NULL: it was entered as &quot;recorded&quot;
+and never edited. The first fabrication (VELT-0137) was a post-lock edit;
+this one was invented at entry.</li>
+</ul>
+<p><strong>Flag: <code>deadface{VELT-0148}</code></strong></p>
+<h2 id="challenge-6-the-compromised-account-mysql-shell">Challenge 6 — the compromised account (MySQL shell)</h2>
+<p>DEADFACE bragged on GhostTown: &quot;one legitimate account, used from two places
+at once.&quot; <code>aurora_audit.access_log</code> (432 rows) tracks
+<code>user_id, workstation, ip_address, action, accessed_at</code> per event.</p>
+<h3 id="the-query-4">The query</h3>
+<p>Impossible-travel detection at second granularity — same user, same
+<code>accessed_at</code>, two or more distinct workstations:</p>
+<pre><code class="language-sql">SELECT u.username, l.accessed_at,
+       COUNT(DISTINCT l.workstation) AS ws_count,
+       GROUP_CONCAT(DISTINCT l.workstation ORDER BY l.workstation) AS workstations
+FROM aurora_audit.access_log l
+JOIN aurora_audit.users u ON u.user_id = l.user_id
+GROUP BY l.user_id, u.username, l.accessed_at
+HAVING ws_count &gt;= 2
+ORDER BY l.accessed_at;
+</code></pre>
+<p>Result: 8 simultaneous-session events, all one account — <strong><code>kbhatt</code></strong>:</p>
+<pre><code>kbhatt  2025-11-04 23:54:03  WS-008, WS-028
+kbhatt  2025-11-05 23:55:55  WS-013, WS-025
+kbhatt  2025-11-14 02:18:01  WS-002, WS-023
+kbhatt  2025-11-18 01:23:54  WS-015, WS-027
+kbhatt  2025-11-19 02:37:21  WS-008, WS-026
+kbhatt  2025-11-21 02:51:31  WS-018, WS-029
+kbhatt  2025-11-23 02:29:51  WS-006, WS-030
+kbhatt  2025-11-27 03:57:17  WS-011, WS-022
+</code></pre>
+<p>A per-account rollup confirms kbhatt is the only account in the entire log
+with any simultaneous-session event (16 rows across the 8 timestamps), and the
+workstation pair is different every time — the legitimate user's machine plus
+whatever box DEADFACE had just compromised. Late-night cadence (23:54–03:57)
+fits off-hours access.</p>
+<p><strong>Flag: <code>deadface{kbhatt}</code></strong></p>
+<h2 id="lessons">Lessons</h2>
+<ul>
+<li>ttyd's input opcode is <code>'0'</code> (0x30) prefixed binary frames, and the hello is
+a plain text JSON frame — getting this wrong looks like &quot;the server sent
+nothing.&quot;</li>
+<li>Aurora's MySQL shell spawns one shell per websocket connection; batch all
+queries in a single long-lived session and log to a file.</li>
+<li>&quot;OR 1=1 leaks a row&quot; ≠ &quot;you can forge a row&quot;: when the app re-serializes a
+fixed response, UNION forgery silently dies while the leak still works.</li>
+<li>Zero-width-character stego in a user message is bait first, puzzle second —
+decode it, read it, don't obey it.</li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

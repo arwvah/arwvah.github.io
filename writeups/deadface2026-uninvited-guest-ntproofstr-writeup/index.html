@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEADFACE 2026 — Uninvited Guest: NTLMv2 NTProofStr — arwah</title><meta name="description" content="Follow a poisoned LLMNR reply through an SMB session and extract the NTLMv2 proof from packet evidence with tshark."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Forensics · 1 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#answer">Answer</a></li><li><a href="#evidence">Evidence</a></li><li><a href="#reproduction">Reproduction</a></li></ul></details><article class="prose"><h1 id="deadface-2026-uninvited-guest-ntlmv2-ntproofstr">DEADFACE 2026 — Uninvited Guest: NTLMv2 NTProofStr</h1>
+<h2 id="answer">Answer</h2>
+<p><code>deadface{5a2342014fe7f28997ce4dcd09f6b7f8}</code></p>
+<h2 id="evidence">Evidence</h2>
+<p>Artifact: <code>/home/arwah/Downloads/demonne.pcap</code><br />
+SHA-256: <code>a717623237abefb2fc061d6df8f6e9d1391f066f5ac448042b5eb72d41a8ddb3</code></p>
+<p>The poisoned-name sequence was an LLMNR response in frame 1463: it resolved
+<code>dmf-field-01</code> to <code>10.77.10.66</code>. Immediately afterwards, Nathan's workstation
+(MAC <code>52:54:00:77:20:01</code>) opened an SMB session to the rogue host. The first
+NTLMv2 authentication in that sequence was frame 1489. Wireshark decodes its
+username as <code>nkessler</code> and exposes the 16-byte proof in the
+<code>ntlmssp.ntlmv2_response.ntproofstr</code> field.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Locate the poisoned LLMNR reply first:</p>
+<pre><code class="language-bash">tshark -r /home/arwah/Downloads/demonne.pcap \
+  -Y 'frame.number == 1463' \
+  -T fields -e frame.number -e llmnr.name -e dns.a
+</code></pre>
+<p>Then inspect the first following NTLMv2 authentication:</p>
+<pre><code class="language-bash">tshark -r /home/arwah/Downloads/demonne.pcap \
+  -Y 'frame.number == 1489' \
+  -T fields \
+  -e frame.number -e frame.time_utc \
+  -e eth.src -e eth.dst \
+  -e ntlmssp.auth.username \
+  -e ntlmssp.ntlmv2_response.ntproofstr
+</code></pre>
+<p>The final field is <code>5a2342014fe7f28997ce4dcd09f6b7f8</code>; it is already a 16-byte
+value written as 32 hexadecimal characters, so it can be placed directly in
+the requested flag format.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

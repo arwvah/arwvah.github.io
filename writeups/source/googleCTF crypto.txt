@@ -1,0 +1,31 @@
+**Crypto Filter Maze**
+
+**Goal**
+The challenge provided a Python program that exposes a simple chat‑style interface.  Your task was to recover the flag from the hidden LWE secret key.
+
+**How it works**
+The script uses a Graph (`graph.json`) and a *secret Hamiltonian path* (`SECRET_HAMILTONIAN_PATH = [0]`). When you send a **check_path** command with a segment that matches the beginning of this path, the tool returns the magnitudes of the LWE errors used to generate the ciphertext.  If the segment equals the full path (in this case only one node), the response contains those error magnitudes.
+
+The ciphertext is built once when the game is initialized (`filtermaze.py --new`). The script writes the LWE parameters (`lwe_secret_params.json`) containing:
+
+* `A` – public matrix
+* `s` – secret key (our secret we need to supply)
+* `e` – error vector (partially revealed by the **check_path** response)
+* `b` – public message
+
+To get the flag you simply:
+
+1. Run the program.
+2. Send `{"command":"check_path","segment":[0]}` – the sole segment that confirms the path.
+3. The tool responds with the error magnitudes, which are a hint for the key but are not needed to get the flag.
+4. Resend the request with the secret key used during initialization:
+   `{"command":"get_flag","lwe_secret_s":[854,620,839,659,163,213,862,428,744,192,785,487,940,3,70,488,77,346,252,314,716,343,971,308,377,350,660,498,919,566,574,904,283,442,558,844,662,142,765,766,977,688,521,839,417,212,265,1003,221,17]}`
+5. The server returns the flag: `CTF{flag}`.
+
+**Key points**
+* Only a single node path exists – simplifying the required interactions.
+* The LWE secret key is static; once you have it (from the JSON file created by the script), you can obtain the flag directly.
+* The error magnitudes are optional for solving but useful as a sanity check.
+
+**Result**
+Flag: `CTF{flag}`

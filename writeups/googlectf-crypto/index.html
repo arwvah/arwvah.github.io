@@ -1,0 +1,30 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Crypto Filter Maze — arwah</title><meta name="description" content="Explore a graph-based cryptography challenge where leaked LWE error magnitudes reveal a route to recovering the hidden secret."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Cryptography · 2 min read</div><article class="prose"><h1 id="crypto-filter-maze">Crypto Filter Maze</h1>
+<p><strong>Goal</strong>
+The challenge provided a Python program that exposes a simple chat‑style interface.  Your task was to recover the flag from the hidden LWE secret key.</p>
+<p><strong>How it works</strong>
+The script uses a Graph (<code>graph.json</code>) and a <em>secret Hamiltonian path</em> (<code>SECRET_HAMILTONIAN_PATH = [0]</code>). When you send a <strong>check_path</strong> command with a segment that matches the beginning of this path, the tool returns the magnitudes of the LWE errors used to generate the ciphertext.  If the segment equals the full path (in this case only one node), the response contains those error magnitudes.</p>
+<p>The ciphertext is built once when the game is initialized (<code>filtermaze.py --new</code>). The script writes the LWE parameters (<code>lwe_secret_params.json</code>) containing:</p>
+<ul>
+<li><code>A</code> – public matrix</li>
+<li><code>s</code> – secret key (our secret we need to supply)</li>
+<li><code>e</code> – error vector (partially revealed by the <strong>check_path</strong> response)</li>
+<li><code>b</code> – public message</li>
+</ul>
+<p>To get the flag you simply:</p>
+<ol>
+<li>Run the program.</li>
+<li>Send <code>{&quot;command&quot;:&quot;check_path&quot;,&quot;segment&quot;:[0]}</code> – the sole segment that confirms the path.</li>
+<li>The tool responds with the error magnitudes, which are a hint for the key but are not needed to get the flag.</li>
+<li>Resend the request with the secret key used during initialization:
+<code>{&quot;command&quot;:&quot;get_flag&quot;,&quot;lwe_secret_s&quot;:[854,620,839,659,163,213,862,428,744,192,785,487,940,3,70,488,77,346,252,314,716,343,971,308,377,350,660,498,919,566,574,904,283,442,558,844,662,142,765,766,977,688,521,839,417,212,265,1003,221,17]}</code></li>
+<li>The server returns the flag: <code>CTF{flag}</code>.</li>
+</ol>
+<p><strong>Key points</strong></p>
+<ul>
+<li>Only a single node path exists – simplifying the required interactions.</li>
+<li>The LWE secret key is static; once you have it (from the JSON file created by the script), you can obtain the flag directly.</li>
+<li>The error magnitudes are optional for solving but useful as a sanity check.</li>
+</ul>
+<p><strong>Result</strong>
+Flag: <code>CTF{flag}</code></p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

@@ -31,3 +31,19 @@ Deployed automatically by GitHub Pages from the root of this repository (`main` 
 - **Interest tags:** the `g=[[...]]` array in `TerminalPanel`
 - **Projects section:** the `AR_PROJECTS` array in `assets/routes-uNhI-opM.js` (name, description, tags, GitHub link, screenshot path in `images/`)
 - **Experience section:** the `AR_EXPERIENCE` array in `assets/routes-uNhI-opM.js` (period, role, org, description, tags)
+
+## Writeup library
+
+`writeups/source/` contains the 26 unique imported Markdown/text documents. The exact duplicate `stega_hidden.md` is represented by `geosint_writeup.md`; the two distinct penalty-shootout solutions remain separate. The original external folder is unchanged.
+
+The generated static library at `/writeups/` includes search, category filters, responsive article pages, section navigation, and escaped code examples. Raw HTML inside Markdown is disabled. Source-relative Markdown links are rewritten to their article pages.
+
+To regenerate after updating sources:
+
+```bash
+python -m venv .venv-writeups
+.venv-writeups/bin/pip install -r scripts/requirements-writeups.txt
+.venv-writeups/bin/python scripts/build_writeups.py
+```
+
+Commit the generated HTML and catalog alongside the sources. GitHub Pages serves these files without running Python. Homepage featured cards are mirrored in `index.html` and `assets/routes-uNhI-opM.js`; update both when changing the featured selection. Bump asset URL versions when changing the frontend to avoid stale browser caches.

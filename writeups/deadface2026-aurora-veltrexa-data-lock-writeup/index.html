@@ -1,0 +1,159 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEADFACE CTF — Aurora Health: Veltrexa Data-Lock Tampering — arwah</title><meta name="description" content="Find the subject whose primary efficacy result was modified after the Veltrexa study&#x27;s official data-lock date. The result must have measure = &#x27;primaryefficacydelta&#x27;, and the lock date…"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Web / Database · 4 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#1-challenge">1. Challenge</a></li><li><a href="#2-result">2. Result</a></li><li><a href="#3-access-the-provided-shell">3. Access the provided shell</a></li><li><a href="#4-locate-the-trial-database">4. Locate the trial database</a></li><li><a href="#5-inspect-the-schema-and-official-lock-date">5. Inspect the schema and official lock date</a></li><li><a href="#6-find-primary-efficacy-results-changed-after-the-lock">6. Find primary efficacy results changed after the lock</a></li><li><a href="#7-build-the-flag">7. Build the flag</a></li><li><a href="#8-evidence-boundaries">8. Evidence boundaries</a></li></ul></details><article class="prose"><h1 id="deadface-ctf-aurora-health-veltrexa-data-lock-tampering">DEADFACE CTF — Aurora Health: Veltrexa Data-Lock Tampering</h1>
+<p><strong>Category:</strong> SQL / Database investigation<br />
+<strong>Analyst:</strong> bratxer<br />
+<strong>Target:</strong> https://aurora.dctf.io/<br />
+<strong>Database:</strong> <code>aurora_trials</code></p>
+<h2 id="1-challenge">1. Challenge</h2>
+<p>Find the subject whose primary efficacy result was modified after the Veltrexa study's official data-lock date. The result must have <code>measure = 'primary_efficacy_delta'</code>, and the lock date is recorded in the <code>studies</code> table.</p>
+<p>Required flag format:</p>
+<pre><code class="language-text">deadface{subject_code}
+</code></pre>
+<h2 id="2-result">2. Result</h2>
+<pre><code class="language-text">deadface{VELT-0137}
+</code></pre>
+<p>The database returned exactly one matching result:</p>
+<table>
+<thead>
+<tr>
+<th>Subject code</th>
+<th>Result ID</th>
+<th>Measure</th>
+<th>Modified at</th>
+<th>Data-lock date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VELT-0137</code></td>
+<td><code>200058</code></td>
+<td><code>primary_efficacy_delta</code></td>
+<td><code>2025-12-06 23:14:00</code></td>
+<td><code>2025-12-01</code></td>
+</tr>
+</tbody>
+</table>
+<p>This result was modified after the study's recorded lock date, satisfying the challenge's condition. The flag was derived from live database output; it was not submitted to the challenge platform during this investigation.</p>
+<h2 id="3-access-the-provided-shell">3. Access the provided shell</h2>
+<p>The challenge URL serves a <code>ttyd</code> web terminal connected to a MySQL shell. The terminal presented an <code>aurora&gt;</code> prompt, with MySQL Community Server version <code>8.0.46</code>.</p>
+<p>Browser automation was unavailable during the investigation, so the same provided terminal was accessed through its WebSocket transport. The terminal client page exposed <code>/token</code> and <code>/ws</code>; the connection used the <code>tty</code> WebSocket subprotocol. This supplied the existing challenge shell without a separate database login or authentication bypass.</p>
+<p>The SQL below can be entered directly into the challenge's browser terminal. Only database selection, schema inspection, and read-only queries were used.</p>
+<h2 id="4-locate-the-trial-database">4. Locate the trial database</h2>
+<p>An initial <code>SHOW TABLES;</code> returned:</p>
+<pre><code class="language-text">ERROR 1046 (3D000): No database selected
+</code></pre>
+<p>List the available databases:</p>
+<pre><code class="language-sql">SHOW DATABASES;
+</code></pre>
+<p>The output included:</p>
+<pre><code class="language-text">aurora_audit
+aurora_ehr
+aurora_pharmacy
+aurora_trials
+information_schema
+performance_schema
+</code></pre>
+<p>Select the trial database and list its tables:</p>
+<pre><code class="language-sql">USE aurora_trials;
+SHOW TABLES;
+</code></pre>
+<p>Returned tables:</p>
+<pre><code class="language-text">adverse_events
+data_changes
+results
+sites
+studies
+subjects
+</code></pre>
+<p><code>USE</code> selects the database for subsequent queries. It does not modify the stored records.</p>
+<h2 id="5-inspect-the-schema-and-official-lock-date">5. Inspect the schema and official lock date</h2>
+<pre><code class="language-sql">DESCRIBE studies;
+DESCRIBE results;
+DESCRIBE subjects;
+</code></pre>
+<p><code>DESCRIBE</code> shows column names, types, and key information. The relevant columns were:</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Relevant columns</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>studies</code></td>
+<td><code>study_id</code>, <code>drug_name</code>, <code>data_lock_date</code></td>
+<td>Identify the study and its official lock date</td>
+</tr>
+<tr>
+<td><code>subjects</code></td>
+<td><code>subject_id</code>, <code>study_id</code>, <code>subject_code</code></td>
+<td>Connect each subject to a study and recover the requested code</td>
+</tr>
+<tr>
+<td><code>results</code></td>
+<td><code>result_id</code>, <code>subject_id</code>, <code>measure</code>, <code>modified_at</code></td>
+<td>Identify the efficacy result and when it was modified</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>data_changes</code> schema was also inspected, but its records were not needed to answer this challenge.</p>
+<p>Retrieve the Veltrexa study:</p>
+<pre><code class="language-sql">SELECT study_id, drug_name, data_lock_date
+FROM studies
+WHERE drug_name LIKE '%Veltrexa%';
+</code></pre>
+<p>Observed output:</p>
+<pre><code class="language-text">+----------+------------------------+----------------+
+| study_id | drug_name              | data_lock_date |
++----------+------------------------+----------------+
+|        1 | Veltrexa (velcoraxine)  | 2025-12-01     |
++----------+------------------------+----------------+
+1 row in set
+</code></pre>
+<p>The wildcard match finds Veltrexa even though the stored name also contains its generic name, <code>velcoraxine</code>.</p>
+<h2 id="6-find-primary-efficacy-results-changed-after-the-lock">6. Find primary efficacy results changed after the lock</h2>
+<pre><code class="language-sql">SELECT
+    s.subject_code,
+    r.result_id,
+    r.measure,
+    r.modified_at,
+    st.data_lock_date
+FROM results AS r
+JOIN subjects AS s
+    ON s.subject_id = r.subject_id
+JOIN studies AS st
+    ON st.study_id = s.study_id
+WHERE st.drug_name LIKE '%Veltrexa%'
+  AND r.measure = 'primary_efficacy_delta'
+  AND r.modified_at &gt; st.data_lock_date;
+</code></pre>
+<h3 id="how-the-query-works">How the query works</h3>
+<ol>
+<li><code>FROM results AS r</code> starts with the trial result records. <code>r</code> is a short alias for the table.</li>
+<li>The first <code>JOIN</code> connects a result to its subject using <code>subject_id</code>, making <code>subject_code</code> available.</li>
+<li>The second <code>JOIN</code> connects that subject to the correct study using <code>study_id</code>, making the study's lock date available.</li>
+<li>The drug-name condition limits the search to Veltrexa.</li>
+<li>The measure condition selects only <code>primary_efficacy_delta</code> results.</li>
+<li>The final comparison requires the modification timestamp to be later than the study's lock date.</li>
+</ol>
+<p>The joins matter: each result must be compared with the lock date of its own study, rather than an unrelated study or a manually assumed date.</p>
+<h3 id="observed-query-result">Observed query result</h3>
+<pre><code class="language-text">subject_code:   VELT-0137
+result_id:      200058
+measure:        primary_efficacy_delta
+modified_at:   2025-12-06 23:14:00
+data_lock_date: 2025-12-01
+
+1 row in set
+</code></pre>
+<p><code>modified_at</code> is a <code>DATETIME</code> column, while <code>data_lock_date</code> is a <code>DATE</code>. The query compares against the start of the lock date. If a task instead explicitly meant after the entire lock day, <code>DATE(r.modified_at) &gt; st.data_lock_date</code> would express that interpretation. This matching record is on December 6, so that distinction does not affect its qualification.</p>
+<h2 id="7-build-the-flag">7. Build the flag</h2>
+<p>Place the returned subject code inside the required wrapper:</p>
+<pre><code class="language-text">deadface{VELT-0137}
+</code></pre>
+<h2 id="8-evidence-boundaries">8. Evidence boundaries</h2>
+<p>The live query confirms that result <code>200058</code> belongs to subject <code>VELT-0137</code>, has the required measure, and has a modification timestamp later than the Veltrexa lock date. Exactly one row matched the query.</p>
+<p>This establishes the condition requested by the CTF. The query alone does not identify who made the edit, the previous efficacy value, or the reason for the change. Those questions would require additional investigation of modification metadata and audit records.</p>
+<p>No records were inserted, updated, or deleted. The terminal session was exited with <code>quit</code> after obtaining the result.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>

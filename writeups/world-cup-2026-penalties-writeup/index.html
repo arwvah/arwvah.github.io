@@ -1,0 +1,127 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>World Cup 2026 Final — Penalty Shootout — arwah</title><meta name="description" content="The service presents a World Cup final that finished 0–0. The winner is decided by a penalty shootout. For every Uzbekistan penalty, the player must choose one of three directions:"><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writeups/writeups.css?v=20261019-2"></head><body><header class="library-nav"><a href="/#writeups">← Portfolio</a><a href="/writeups/">Writeup library</a></header><main><div class="article-meta">Scripting · 3 min read</div><details class="contents"><summary>On this page</summary><ul><li><a href="#challenge-information">Challenge information</a></li><li><a href="#challenge-description">Challenge description</a></li><li><a href="#initial-observation">Initial observation</a></li><li><a href="#vulnerability">Vulnerability</a></li><li><a href="#automated-solution">Automated solution</a></li><li><a href="#result">Result</a></li><li><a href="#flag">Flag</a></li><li><a href="#conclusion">Conclusion</a></li></ul></details><article class="prose"><h1 id="world-cup-2026-final-penalty-shootout">World Cup 2026 Final — Penalty Shootout</h1>
+<h2 id="challenge-information">Challenge information</h2>
+<ul>
+<li><strong>Category:</strong> Miscellaneous / Scripting</li>
+<li><strong>Service:</strong> <code>task.ctf.uz:13001</code></li>
+<li><strong>Connection:</strong> <code>nc task.ctf.uz 13001</code></li>
+<li><strong>Goal:</strong> Win the penalty shootout while controlling only Uzbekistan's shots.</li>
+</ul>
+<h2 id="challenge-description">Challenge description</h2>
+<p>The service presents a World Cup final that finished 0–0. The winner is decided by a penalty shootout. For every Uzbekistan penalty, the player must choose one of three directions:</p>
+<pre><code class="language-text">LEFT
+CENTER
+RIGHT
+</code></pre>
+<p>The goalkeeper also chooses one of these directions. If the shot and goalkeeper directions are equal, the penalty is missed. Otherwise, Uzbekistan scores.</p>
+<h2 id="initial-observation">Initial observation</h2>
+<p>I first sent <code>LEFT</code> for every penalty. This eventually caused a miss whenever the goalkeeper also jumped left. After losing, the service offered a restart:</p>
+<pre><code class="language-text">try again [y/n]:
+</code></pre>
+<p>The important clue appeared after choosing <code>y</code>:</p>
+<pre><code class="language-text">The shootout restarts. Same opponent. Same night. Same goalkeeper.
+</code></pre>
+<p>Testing the same shots again showed that the goalkeeper repeated exactly the same directions for the same penalty numbers. The sequence was deterministic and remained unchanged across restarts within the same connection.</p>
+<h2 id="vulnerability">Vulnerability</h2>
+<p>The service reused the goalkeeper's complete direction sequence after a retry. It also revealed the goalkeeper's direction after every shot, even when Uzbekistan lost.</p>
+<p>This creates a learn-and-replay attack:</p>
+<ol>
+<li>Use a default shot for every unknown penalty.</li>
+<li>Read the goalkeeper's direction from the result.</li>
+<li>Store a different direction for that penalty number.</li>
+<li>When a miss ends the shootout, restart it.</li>
+<li>Replay all previously learned safe directions.</li>
+<li>Continue until every required direction has been learned.</li>
+</ol>
+<p>Only two shot directions are needed to avoid all three goalkeeper choices:</p>
+<pre><code class="language-python">def safe_shot(keeper_direction):
+    return &quot;CENTER&quot; if keeper_direction == &quot;LEFT&quot; else &quot;LEFT&quot;
+</code></pre>
+<p>If the goalkeeper jumps left, shoot center. If the goalkeeper jumps center or right, shoot left.</p>
+<h2 id="automated-solution">Automated solution</h2>
+<p>The following Python script keeps one TCP connection open, learns the sequence, and automatically retries after each loss:</p>
+<pre><code class="language-python">import re
+import socket
+
+HOST = &quot;task.ctf.uz&quot;
+PORT = 13001
+SHOT_PROMPT = b&quot;Choose your shot [LEFT, CENTER, RIGHT]: &quot;
+RESTART_PROMPT = b&quot;try again [y/n]: &quot;
+
+
+def safe_shot(keeper_direction):
+    return &quot;CENTER&quot; if keeper_direction == &quot;LEFT&quot; else &quot;LEFT&quot;
+
+
+sock = socket.create_connection((HOST, PORT), timeout=15)
+sock.settimeout(30)
+
+buffer = b&quot;&quot;
+learned = []
+penalty = 0
+
+while True:
+    while SHOT_PROMPT not in buffer and RESTART_PROMPT not in buffer:
+        block = sock.recv(65536)
+        if not block:
+            flag = re.search(rb&quot;[A-Za-z0-9_.]+\{[^\r\n}]+\}&quot;, buffer)
+            if flag:
+                print(flag.group().decode())
+            raise SystemExit
+        buffer += block
+
+        flag = re.search(rb&quot;[A-Za-z0-9_.]+\{[^\r\n}]+\}&quot;, buffer)
+        if flag:
+            print(flag.group().decode())
+            raise SystemExit
+
+    shot_at = buffer.find(SHOT_PROMPT)
+    restart_at = buffer.find(RESTART_PROMPT)
+    is_shot_prompt = shot_at &gt;= 0 and (restart_at &lt; 0 or shot_at &lt; restart_at)
+
+    marker = SHOT_PROMPT if is_shot_prompt else RESTART_PROMPT
+    event_at = shot_at if is_shot_prompt else restart_at
+    event = buffer[:event_at]
+    buffer = buffer[event_at + len(marker):]
+
+    # The event contains the outcome of the preceding Uzbekistan penalty.
+    directions = re.findall(rb&quot;jumps (LEFT|CENTER|RIGHT)\.&quot;, event)
+    if directions and penalty:
+        replay_shot = safe_shot(directions[-1].decode())
+        if len(learned) &lt; penalty:
+            learned.append(replay_shot)
+        else:
+            learned[penalty - 1] = replay_shot
+
+    if is_shot_prompt:
+        penalty += 1
+        shot = learned[penalty - 1] if penalty &lt;= len(learned) else &quot;LEFT&quot;
+        sock.sendall((shot + &quot;\n&quot;).encode())
+    else:
+        penalty = 0
+        sock.sendall(b&quot;y\n&quot;)
+</code></pre>
+<h2 id="result">Result</h2>
+<p>The solver progressively learned the deterministic sequence. On the successful run, Uzbekistan converted penalty 100 by shooting center while the goalkeeper jumped left. Argentina then missed:</p>
+<pre><code class="language-text">Penalty 100
+Score: Uzbekistan 99 - 99 Argentina
+
+Abbosbek Fayzullaev shoots CENTER.
+Emiliano Martinez jumps LEFT.
+[+] GOAL
+
+Lionel Messi shoots.
+[-] MISSED
+
+Score after penalty 100:
+Uzbekistan 100 - 99 Argentina
+
+============================================================
+            UZBEKISTAN WINS THE WORLD CUP 2026!
+============================================================
+</code></pre>
+<h2 id="flag">Flag</h2>
+<pre><code class="language-text">CTF.UZ{W3_4r3_7h3_Ch4mp10n5_my_fr13nd!}
+</code></pre>
+<h2 id="conclusion">Conclusion</h2>
+<p>The weakness was deterministic state reuse across retries. Because the service disclosed every goalkeeper decision and did not regenerate the sequence after a loss, each attempt leaked more of the correct solution. Recording the moves and replaying safe directions converted the shootout into a predictable sequence and produced the flag.</p>
+</article><a class="back-link" href="/writeups/">← All writeups</a></main><footer>CTF solutions &amp; security notes · arwah</footer></body></html>
