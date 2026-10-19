@@ -71,3 +71,10 @@
 
 .dialog[data-dialog=contact]{overscroll-behavior:contain;place-items:start center;overflow:auto}
 .dialog[data-dialog=contact] .dialog-close{position:absolute;top:1.5rem;right:1.5rem}
+
+.website-writeups{min-height:65svh;scroll-margin-top:1rem}
+.website-writeups-empty{padding:clamp(1.5rem,4vw,4rem);display:flex;flex-direction:column;gap:1.25rem}
+.website-writeups-empty h3{font-family:var(--font-family-fancy);font-size:clamp(1.5rem,3vw,2rem);font-weight:500;margin:0;color:var(--landing-text)}
+.website-writeups-empty p{font-family:var(--font-family-sans);font-size:1rem;line-height:1.7;max-width:44rem;margin:0;color:var(--landing-text)}
+.website-writeups-empty .website-writeups-kicker{font-family:var(--font-family-mono);font-size:.75rem;letter-spacing:.1em}
+@media (801px <= width <= 1100px){.nav-website-links{display:none}.nav-website-menu{display:block}}
