@@ -1,2 +1,5 @@
 
 .venv-writeups/
+
+__pycache__/
+*.pyc

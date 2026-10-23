@@ -28,34 +28,34 @@ def category(name, text):
     if name == 'deadface-ctf-writeup.md': return 'Mixed Challenges'
     return 'Forensics'
 
+from build_site import validate
+data = json.loads((ROOT / 'content/portfolio.json').read_text())
+validate(data)
+# Clean only previously generated article directories and source documents.
+previous = json.loads((OUT / 'catalog.json').read_text()) if (OUT / 'catalog.json').exists() else []
+current_slugs = {d['slug'] for d in data['writeups']}
+current_sources = {d['source'] for d in data['writeups']}
+import shutil
+for old in previous:
+    if old['slug'] not in current_slugs and re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', old['slug']) and old['slug'] not in ('source', 'index', 'assets', 'admin'):
+        directory = OUT / old['slug']
+        if directory.is_dir(): shutil.rmtree(directory)
+    if old['source'] not in current_sources and Path(old['source']).name == old['source']:
+        (OUT / 'source' / old['source']).unlink(missing_ok=True)
 docs = []
-for path in sorted((OUT / 'source').iterdir()):
-    if path.suffix not in ('.md', '.txt'): continue
-    text = path.read_text()
+for entry in data['writeups']:
+    text = entry['body']
+    (OUT / 'source' / entry['source']).write_text(text)
     text = re.sub(r'\A---\n.*?\n---\n', '', text, count=1, flags=re.S).strip()
-    title_match = re.search(r'^# (.+)$', text, re.M)
-    title = plain(title_match[1]) if title_match else plain(text.splitlines()[0])
-    if path.name == 'world_cup_2026_penalty_shootout.md': title += ' — Concise Solution'
-    if path.suffix == '.txt': text = '# ' + title + '\n\n' + '\n'.join(text.splitlines()[1:])
-    # Use an explanatory paragraph, avoiding flag/credential metadata as card copy.
-    without_code = re.sub(r'```.*?```', '', text, flags=re.S)
-    paragraphs = re.split(r'\n\s*\n', without_code)
-    candidates = [plain(' '.join(p.split())) for p in paragraphs if len(p) > 80 and not p.startswith(('#', '**', '|', '-', '>', 'Flag:'))]
-    summary = candidates[0] if candidates else 'Challenge notes, evidence, and a step-by-step solution.'
-    summaries = {
-        'deadface2026-uninvited-guest-ntproofstr-writeup.md': 'Follow a poisoned LLMNR reply through an SMB session and extract the NTLMv2 proof from packet evidence with tshark.',
-        'deadface2026-who-goes-there-telemetry-source-writeup.md': 'Recover the source of a telemetry script from a Windows memory image and connect its transfer command to the persistence investigation.',
-        'deadface2026-aurora-patient-portal-writeup.md': 'Investigate mobile artifacts, a patient portal, and trial databases to reconstruct an attack chain across six DEADFACE challenges.',
-        'googleCTF crypto.txt': 'Explore a graph-based cryptography challenge where leaked LWE error magnitudes reveal a route to recovering the hidden secret.'
-    }
-    summary = summaries.get(path.name, summary)
-    summary = summary[:187].rsplit(' ', 1)[0] + '…' if len(summary) > 190 else summary
-    docs.append({'slug': slug(path.stem), 'title': title, 'category': category(path.name, text), 'summary': summary,
-                 'minutes': max(1, math.ceil(len(text.split()) / 220)), 'source': path.name, 'text': text})
-# Put the most recent group first; filenames provide a stable order without invented dates.
-docs.sort(key=lambda d: (not d['source'].startswith('deadface'), d['title'].lower()))
+    if entry['source'].endswith('.txt'):
+        text = '\n'.join(text.splitlines()[1:])
+    # Title is controlled by the editor, independently of the Markdown body.
+    text = re.sub(r'^# .+$', '', text, count=1, flags=re.M).strip()
+    text = '# ' + entry['title'] + '\n\n' + text
+    docs.append({k:v for k,v in entry.items() if k not in ('body', 'featured')} | {
+        'text': text, 'minutes': max(1, math.ceil(len(text.split()) / 220))})
 links = {d['source']: '/writeups/' + d['slug'] + '/' for d in docs}
-links['stega_hidden.md'] = links['geosint_writeup.md']
+if 'geosint_writeup.md' in links: links['stega_hidden.md'] = links['geosint_writeup.md']
 
 def card(d):
     return f'''<a class="writeup-card" href="/writeups/{d['slug']}/" data-category="{html.escape(d['category'])}"><span class="writeup-meta">{html.escape(d['category'])} · {d['minutes']} min read</span><h3>{html.escape(d['title'])}</h3><p>{html.escape(d['summary'])}</p><span class="writeup-read">Read writeup ↗</span></a>'''

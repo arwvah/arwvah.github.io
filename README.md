@@ -4,7 +4,7 @@ Personal portfolio of [arwah](https://github.com/arwah), published via GitHub Pa
 
 ## Stack
 
-- Static site — no build step required
+- Static site — content generated with Python before deployment
 - React (pre-built bundles in `assets/`), GSAP animations, Three.js 3D hero wordmark
 - Geist / Geist Mono variable fonts (self-hosted in `fonts/`)
 
@@ -20,7 +20,7 @@ Then open http://localhost:8000
 
 ## Deployment
 
-Deployed automatically by GitHub Pages from the root of this repository (`main` branch).
+Deployed from `main` with GitHub Actions. The workflow validates `content/portfolio.json`, renders the portfolio and writeup library, then deploys the generated artifact. GitHub Pages must use **GitHub Actions** as its source.
 
 > Note: a `.nojekyll` file is included so GitHub Pages serves files as-is.
 
@@ -29,21 +29,38 @@ Deployed automatically by GitHub Pages from the root of this repository (`main` 
 - **Intro text (About section):** the `Ir=` / `Lr=` strings near the top of `assets/routes-uNhI-opM.js`, plus the matching `aria-label` text and character spans in `index.html`
 - **Terminal lines:** the `r=[[...]]` array inside `function TerminalPanel()` in `assets/routes-uNhI-opM.js` (format: `[kind, text]` where kind is `text`, `cmd`, or `out`) — and the mirrored HTML in `index.html`
 - **Interest tags:** the `g=[[...]]` array in `TerminalPanel`
-- **Projects section:** the `AR_PROJECTS` array in `assets/routes-uNhI-opM.js` (name, description, tags, GitHub link, screenshot path in `images/`)
-- **Experience section:** the `AR_EXPERIENCE` array in `assets/routes-uNhI-opM.js` (period, role, org, description, tags)
+- **Projects, experience, and writeups:** use [the admin studio](https://arwah.wtf/admin/) or edit `content/portfolio.json`.
 
-## Writeup library
+## Admin studio
 
-`writeups/source/` contains the 26 unique imported Markdown/text documents. The exact duplicate `stega_hidden.md` is represented by `geosint_writeup.md`; the two distinct penalty-shootout solutions remain separate. The original external folder is unchanged.
+Open **https://arwah.wtf/admin/**. Connect with a GitHub fine-grained personal access token restricted to **arwvah/arwvah.github.io**, with **Contents: Read and write**. Give it an expiration date. No server secret, shared password, or token is committed to this repository. The token is held in JavaScript memory only; sign out or reload to clear it. GitHub enforces authorization, so knowing the admin URL does not grant publishing access. The editor itself and all published content are public.
 
-The generated static library at `/writeups/` includes search, category filters, responsive article pages, section navigation, and escaped code examples. Raw HTML inside Markdown is disabled. Source-relative Markdown links are rewritten to their article pages.
+The studio supports adding, editing, removing and reordering projects, experience entries, and writeups; tags; screenshot URLs; Markdown previews; homepage featured writeups; draft downloads; and a publish confirmation. Project screenshots use existing `/images/` paths or HTTPS URLs. The editor does not upload image files.
 
-To regenerate after updating sources:
+**Publish changes** saves one atomic commit to `content/portfolio.json`. A file SHA check prevents overwriting concurrent content edits. Changes go live only after the deployment succeeds; use the deployment link shown after saving. Unsaved drafts remain in the tab, not browser storage. Download a draft before signing out or reloading if you need a backup. To restore a downloaded draft, replace `content/portfolio.json` in the repository with that JSON and commit it. Git history provides rollback for published content.
+
+The token only needs Contents permission. If your branch rules prohibit direct commits, publishing will report an error; this version does not create pull requests. A repository admin can revoke a token in GitHub at any time.
+
+## Content and writeup build
+
+`content/portfolio.json` is the source of truth. Existing Markdown/text writeups were imported without changing the original external `/home/arwah/WriteUps` folder. `writeups/source/`, generated articles, the searchable library, homepage cards, and prebuilt React data are synchronized by the build. Editing generated bundles directly is not needed for these sections.
 
 ```bash
 python -m venv .venv-writeups
 .venv-writeups/bin/pip install -r scripts/requirements-writeups.txt
-.venv-writeups/bin/python scripts/build_writeups.py
+.venv-writeups/bin/python scripts/build_site.py --output /tmp/portfolio-preview
+python -m http.server 8000 --directory /tmp/portfolio-preview
 ```
 
-Commit the generated HTML and catalog alongside the sources. GitHub Pages serves these files without running Python. Homepage featured cards are mirrored in `index.html` and `assets/routes-uNhI-opM.js`; update both when changing the featured selection. Bump asset URL versions when changing the frontend to avoid stale browser caches.
+Use a fresh output directory for each build. Open `http://localhost:8000` or `/admin/`. Running `python scripts/build_site.py` without `--output` regenerates files in this checkout. The deployment build uses a clean artifact so removed writeups are no longer served. Changing a slug changes that article’s public URL; old URLs are not automatically redirected.
+
+Markdown raw HTML is disabled in both build and preview. Admin scripts are self-hosted, with a restrictive CSP. GitHub tokens are sent only to `api.github.com`, never included in URLs or draft exports. The UI escapes editable text; input validation rejects unsafe project URLs and path traversal. Content is limited to 900 KB in the editor to stay within GitHub’s file-content API limit.
+
+### Checks
+
+```bash
+node --test tests/admin.test.mjs
+python -m unittest discover -s tests -p 'test_*.py'
+```
+
+Tests cover Unicode content, authorization failures, concurrent update conflicts, unsafe URLs, path traversal, synchronized rendering, deleted articles, Markdown escaping, and repeatable builds. The Markdown preview uses the self-hosted MIT-licensed markdown-it 14.1.0 distribution (`admin/markdown-it.LICENSE`).
