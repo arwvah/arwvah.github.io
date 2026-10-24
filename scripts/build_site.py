@@ -88,5 +88,5 @@ if __name__ == '__main__':
     if args.output:
         root = args.output.resolve()
         if root.exists(): raise SystemExit('Output folder must not already exist')
-        shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns('.git', '.venv*', 'node_modules', '__pycache__', 'tests'))
+        shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns('.git', '.venv*', 'node_modules', '__pycache__', 'tests', 'worker', '.dev.vars*', '.env*', '.wrangler'))
     build(root)

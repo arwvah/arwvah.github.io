@@ -1,0 +1,11 @@
+{
+  "name": "arwah-portfolio-admin",
+  "main": "index.js",
+  "compatibility_date": "2026-10-23",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{"pattern": "arwah.wtf/admin-api/*", "zone_name": "arwah.wtf"}],
+  "vars": {"ADMIN_USERNAME": "arwah", "SITE_ORIGIN": "https://arwah.wtf"},
+  "ratelimits": [{"name": "LOGIN_LIMITER", "namespace_id": "7731023", "simple": {"limit": 5, "period": 60}}],
+  "secrets": {"required": ["PASSWORD_RECORD", "SESSION_SECRET", "GITHUB_TOKEN"]}
+}

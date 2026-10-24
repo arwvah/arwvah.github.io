@@ -64,3 +64,15 @@ python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Tests cover Unicode content, authorization failures, concurrent update conflicts, unsafe URLs, path traversal, synchronized rendering, deleted articles, Markdown escaping, and repeatable builds. The Markdown preview uses the self-hosted MIT-licensed markdown-it 14.1.0 distribution (`admin/markdown-it.LICENSE`).
+
+## Password authentication backend
+
+The matching metallic admin theme is served by GitHub Pages. Password authentication is implemented in `worker/index.js` and must be deployed separately to Cloudflare before changing `admin/auth-config.js` from `github` to `password`. Until then, the existing GitHub-token login remains functional.
+
+The backend handles only `arwah.wtf/admin-api/*`. It uses a salted PBKDF2 password verifier, signed one-hour Secure/HttpOnly/SameSite cookies, same-origin checks, JSON-only mutation requests, and five login attempts per minute per IP per Cloudflare location. Repository writes are limited to `content/portfolio.json` and require the current file SHA. The GitHub token remains in a Cloudflare encrypted secret and is never returned to the browser. The username defaults to `arwah`; no password or verifier is committed to the repository. Logging out deletes the browser cookie; rotating `SESSION_SECRET` invalidates all sessions.
+
+### One-time deployment
+
+Create a fine-grained GitHub token scoped only to this repository with Contents read/write. Run `python scripts/setup_admin.py` and enter the password and token in its hidden prompts. The script opens Cloudflare authorization and deploys the Worker with encrypted secrets. It removes its temporary secret file afterward. `--bootstrap /private/path/bootstrap-secrets.json` can reuse a previously prepared password verifier and session key.
+
+After deployment, verify the API rejects unauthenticated content requests, enable `AUTH_MODE = 'password'` in `admin/auth-config.js`, and deploy the site. Keep password mode disabled if backend provisioning has not succeeded. Tests: `node --test tests/auth.test.mjs tests/admin.test.mjs`.

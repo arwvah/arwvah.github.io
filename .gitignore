@@ -3,3 +3,8 @@
 
 __pycache__/
 *.pyc
+
+.dev.vars*
+.env*
+.wrangler/
+worker/secrets*.json

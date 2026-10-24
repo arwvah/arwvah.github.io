@@ -1,5 +1,16 @@
 import {GitHub, REPO, validate} from './model.js';
+import {SessionClient} from './session-client.js';
+import {AUTH_MODE} from './auth-config.js';
 const $ = id => document.getElementById(id);
+const passwordMode=AUTH_MODE==='password';
+$('token-fields').hidden=passwordMode;
+$('token-help').hidden=passwordMode;
+$('token').required=!passwordMode;
+$('password-fields').hidden=!passwordMode;
+$('password-note').hidden=!passwordMode;
+$('username').required=passwordMode;
+$('password').required=passwordMode;
+$('login-submit').textContent=passwordMode?'Sign in →':'Connect to GitHub →';
 const state = {client:null,data:null,sha:null,base:'',group:'projects',index:0,busy:false};
 const markdown = window.markdownit({html:false,linkify:false,typographer:false});
 // Previews never load images embedded in Markdown. Project images load only on request.
@@ -76,10 +87,12 @@ async function load() {
   $('login').hidden=true;$('workspace').hidden=false;$('account').textContent='Connected to '+REPO;render();
 }
 $('login-form').onsubmit=async e=>{
-  e.preventDefault();busy(true);status('Checking repository access…');
-  const token=$('token').value.trim();$('token').value='';state.client=new GitHub(token);
-  try {await load();status('Connected. Pick an entry to start editing.');}
-  catch(error) {state.client.clear();state.client=null;status(error.message,true);}
+  e.preventDefault();busy(true);status('Signing in…');
+  const token=$('token').value.trim();$('token').value='';
+  const password=$('password').value;$('password').value='';
+  state.client=passwordMode?new SessionClient():new GitHub(token);
+  try {if(passwordMode)await state.client.login($('username').value.trim(),password);await load();status('Signed in. Pick an entry to start editing.');}
+  catch(error) {if(!passwordMode)state.client?.clear();state.client=null;status(error.message,true);}
   finally {busy(false);}
 };
 $('editor-form').onsubmit=e=>e.preventDefault();
@@ -95,7 +108,7 @@ for(const [id,delta] of [['up',-1],['down',1]]) $(id).onclick=()=>{const list=st
 $('remove').onclick=async()=>{if(!item())return;if(!await confirm('Remove this entry?',`“${title(item())}” will be removed when you publish. Previous versions remain in GitHub history.`,'Remove entry'))return;state.data[state.group].splice(state.index,1);state.index=Math.max(0,state.index-1);render();};
 $('export').onclick=()=>{const blob=new Blob([JSON.stringify(state.data,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='portfolio-draft.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('Draft downloaded. No access token is included.');};
 $('reload').onclick=async()=>{if(dirty()&&!await confirm('Reload content?','This discards your unpublished edits. Download your draft first if you want to keep it.','Reload'))return;busy(true);try{await load();status('Latest content loaded.');}catch(e){status(e.message,true);}finally{busy(false);}};
-$('logout').onclick=async()=>{if(dirty()&&!await confirm('Sign out?','Unpublished edits will be discarded. Download your draft first if needed.','Sign out'))return;state.client?.clear();Object.assign(state,{client:null,data:null,sha:null,base:''});$('workspace').hidden=true;$('login').hidden=false;$('editor-form').replaceChildren();$('entries').replaceChildren();$('preview').replaceChildren();$('publish-result').hidden=true;status('Signed out. Your token has been cleared.');};
+$('logout').onclick=async()=>{if(dirty()&&!await confirm('Sign out?','Unpublished edits will be discarded. Download your draft first if needed.','Sign out'))return;try {await state.client?.clear();} catch(e) {status('Sign out failed. Try again; your server session has not been cleared.',true);return;}Object.assign(state,{client:null,data:null,sha:null,base:''});$('workspace').hidden=true;$('login').hidden=false;$('editor-form').replaceChildren();$('entries').replaceChildren();$('preview').replaceChildren();$('publish-result').hidden=true;status(passwordMode?'Signed out. Your session has ended.':'Signed out. Your token has been cleared.');};
 $('publish').onclick=async()=>{
   try{validate(state.data);}catch(e){status(e.message,true);return;}
   if(!await confirm('Publish these changes?',`${state.data.projects.length} projects, ${state.data.experience.length} experience entries, and ${state.data.writeups.length} writeups will be saved to GitHub. The site updates after deployment succeeds.`,'Publish changes'))return;
@@ -110,3 +123,8 @@ $('publish').onclick=async()=>{
   finally{busy(false);}
 };
 window.addEventListener('beforeunload',event=>{if(dirty()||state.busy){event.preventDefault();event.returnValue='';}});
+
+if(passwordMode){
+  state.client=new SessionClient();busy(true);
+  try{await state.client.request('session');await load();}catch{state.client=null;}finally{busy(false);}
+}
